@@ -88,10 +88,20 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard
           label="Total Tokens"
           value={summary ? summary.totalTokens.toLocaleString() : "—"}
+          accent="indigo"
+        />
+        <StatCard
+          label="Prompt Tokens"
+          value={summary ? summary.totalPromptTokens.toLocaleString() : "—"}
+          accent="indigo"
+        />
+        <StatCard
+          label="Completion Tokens"
+          value={summary ? summary.totalCompletionTokens.toLocaleString() : "—"}
           accent="indigo"
         />
         <StatCard
@@ -107,7 +117,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
         />
         <StatCard
           label="Models Used"
-          value={summary ? Object.keys(summary.modelUsage).length : "—"}
+          value={summary ? Object.keys(summary.modelUsage ?? {}).length : "—"}
           accent="indigo"
         />
       </div>
@@ -130,7 +140,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
           <h2 className="text-slate-200 font-semibold text-sm mb-4">Model Breakdown</h2>
           {summary ? (
-            <ModelBarChart modelUsage={summary.modelUsage} />
+            <ModelBarChart modelUsage={summary.modelUsage ?? {}} />
           ) : (
             <div className="h-48 flex items-center justify-center text-slate-500 text-sm animate-pulse">
               Loading chart...
@@ -140,7 +150,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
           {/* Model detail list */}
           {summary && (
             <div className="mt-3 space-y-1.5">
-              {Object.entries(summary.modelUsage).map(([model, usage]) => (
+              {Object.entries(summary.modelUsage ?? {}).map(([model, usage]) => (
                 <div key={model} className="flex items-center justify-between text-xs">
                   <span className="text-slate-400 font-mono truncate max-w-[140px]" title={model}>
                     {model}

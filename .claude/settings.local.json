@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:lumilink-be-staging.defikit.net)",
+      "Bash(curl:*)"
+    ]
+  }
+}

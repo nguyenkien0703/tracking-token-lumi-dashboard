@@ -4,21 +4,28 @@ export interface ModelUsage {
 }
 
 export interface UserCostSummary {
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
   totalTokens: number;
   totalCostUsd: number;
   requestCount: number;
-  modelUsage: Record<string, ModelUsage>;
+  modelUsage?: Record<string, ModelUsage>;
 }
 
 export interface HistoryEntry {
   id: string;
   sessionId: string;
   userId: number;
+  messageId: string | null;
+  model: string;
   promptTokens: number;
   completionTokens: number;
+  cacheReadTokens: number;
   totalTokens: number;
+  inputCostUsd: number;
+  outputCostUsd: number;
   totalCostUsd: number;
-  model: string;
+  langsmithRunId: string | null;
   createdAt: string;
 }
 

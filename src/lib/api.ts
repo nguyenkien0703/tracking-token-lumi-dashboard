@@ -1,13 +1,16 @@
 import { UserCostSummary, HistoryData } from "@/types";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN ?? "";
+// Tất cả API calls đi qua proxy — token được quản lý hoàn toàn server-side
+const PROXY = "/api/proxy";
 
-function getHeaders(): HeadersInit {
-  return {
-    Authorization: `Bearer ${ADMIN_TOKEN}`,
-    "Content-Type": "application/json",
-  };
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${PROXY}/${path}`, { cache: "no-store" });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json.error ?? `API ${res.status}: request failed`);
+  }
+  const json = await res.json();
+  return json.data as T;
 }
 
 export async function getUserCost(
@@ -19,11 +22,7 @@ export async function getUserCost(
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   const qs = params.toString();
-  const url = `${BASE_URL}/api/v1/normal-mode/costs/user/${userId}${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url, { headers: getHeaders(), cache: "no-store" });
-  if (!res.ok) throw new Error(`API ${res.status}: failed to fetch user cost`);
-  const json = await res.json();
-  return json.data as UserCostSummary;
+  return apiFetch(`api/v1/normal-mode/costs/user/${userId}${qs ? `?${qs}` : ""}`);
 }
 
 export async function getHistory(params: {
@@ -41,17 +40,9 @@ export async function getHistory(params: {
   if (params.limit !== undefined) sp.set("limit", String(params.limit));
   if (params.offset !== undefined) sp.set("offset", String(params.offset));
   if (params.model) sp.set("model", params.model);
-  const url = `${BASE_URL}/api/v1/normal-mode/costs/history?${sp.toString()}`;
-  const res = await fetch(url, { headers: getHeaders(), cache: "no-store" });
-  if (!res.ok) throw new Error(`API ${res.status}: failed to fetch history`);
-  const json = await res.json();
-  return json.data as HistoryData;
+  return apiFetch(`api/v1/normal-mode/costs/history?${sp.toString()}`);
 }
 
 export async function getSessionCost(sessionId: string): Promise<UserCostSummary> {
-  const url = `${BASE_URL}/api/v1/normal-mode/costs/session/${sessionId}`;
-  const res = await fetch(url, { headers: getHeaders(), cache: "no-store" });
-  if (!res.ok) throw new Error(`API ${res.status}: failed to fetch session cost`);
-  const json = await res.json();
-  return json.data as UserCostSummary;
+  return apiFetch(`api/v1/normal-mode/costs/session/${sessionId}`);
 }
