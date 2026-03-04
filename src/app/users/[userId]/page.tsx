@@ -102,12 +102,12 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
               <img src={userInfo.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-300 font-bold">
-                {userInfo ? userInfo.firstName[0] : "#"}
+                {userInfo ? (userInfo.firstName?.[0] ?? userInfo.lastName?.[0] ?? "#") : "#"}
               </div>
             )}
             <div>
               <h1 className="text-2xl font-bold text-slate-100">
-                {userInfo ? `${userInfo.firstName} ${userInfo.lastName}` : `User #${userId}`}
+                {userInfo ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || `User #${userId}` : `User #${userId}`}
               </h1>
               {userInfo && (
                 <p className="text-slate-400 text-sm">{userInfo.email} · <span className="text-slate-500">#{userId}</span></p>

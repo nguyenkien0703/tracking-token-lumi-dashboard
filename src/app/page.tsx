@@ -274,14 +274,14 @@ export default function OverviewPage() {
                         />
                       ) : (
                         <div className="w-7 h-7 rounded-full bg-indigo-900 flex items-center justify-center shrink-0 text-xs font-bold text-indigo-300">
-                          {u.info ? u.info.firstName[0] : "#"}
+                          {u.info ? (u.info.firstName?.[0] ?? u.info.lastName?.[0] ?? "#") : "#"}
                         </div>
                       )}
                       <div className="min-w-0">
                         {u.info ? (
                           <>
                             <p className="text-slate-200 text-sm font-medium group-hover:text-indigo-300 transition-colors truncate">
-                              {u.info.firstName} {u.info.lastName}
+                              {[u.info.firstName, u.info.lastName].filter(Boolean).join(" ") || `#${u.userId}`}
                             </p>
                             <p className="text-slate-500 text-xs truncate">{u.info.email}</p>
                           </>
