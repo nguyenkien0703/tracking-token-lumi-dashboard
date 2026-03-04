@@ -24,16 +24,13 @@ interface TopUser {
   info: UserInfo | null;
 }
 
-const DEFAULT_MAX_ID = 200;
-
 export default function OverviewPage() {
   const router = useRouter();
   const [userIdInput, setUserIdInput] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
-  const [maxId, setMaxId] = useState(DEFAULT_MAX_ID);
 
   const [users, setUsers] = useState<TopUser[]>([]);
-  const [scanned, setScanned] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -44,30 +41,28 @@ export default function OverviewPage() {
     setUsers([]);
     setProgress(0);
 
-    // Animate progress while scanning
     const progressInterval = setInterval(() => {
-      setProgress((p) => Math.min(p + 2, 90));
-    }, 200);
+      setProgress((p) => Math.min(p + 1, 90));
+    }, 300);
 
     try {
-      const sp = new URLSearchParams({ maxId: String(maxId) });
+      const sp = new URLSearchParams();
       if (dateRange.from) sp.set("from", dateRange.from);
       if (dateRange.to) sp.set("to", dateRange.to);
       const res = await fetch(`/api/users/top?${sp}`);
-      if (!res.ok) throw new Error(`Scan failed: ${res.status}`);
+      if (!res.ok) throw new Error(`Failed: ${res.status}`);
       const data = await res.json();
       setUsers(data.users ?? []);
-      setScanned(data.scanned ?? maxId);
+      setTotalRecords(data.totalRecords ?? 0);
       setProgress(100);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Scan failed");
+      setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
       clearInterval(progressInterval);
       setLoading(false);
     }
-  }, [maxId, dateRange]);
+  }, [dateRange]);
 
-  // Auto-scan on first load
   useEffect(() => {
     scan();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -89,8 +84,8 @@ export default function OverviewPage() {
           <h1 className="text-2xl font-bold text-slate-100">Overview</h1>
           <p className="text-slate-400 text-sm mt-0.5">
             Top users by token usage
-            {scanned > 0 && !loading && (
-              <span className="text-slate-500"> — scanned user IDs 1–{scanned}</span>
+            {totalRecords > 0 && !loading && (
+              <span className="text-slate-500"> — from {totalRecords.toLocaleString()} total records</span>
             )}
           </p>
         </div>
@@ -118,37 +113,25 @@ export default function OverviewPage() {
           </button>
         </form>
 
-        {/* Scan controls */}
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-slate-500 text-xs">Scan user IDs 1–</span>
-          <input
-            type="number"
-            min={10}
-            max={500}
-            value={maxId}
-            onChange={(e) => setMaxId(parseInt(e.target.value) || DEFAULT_MAX_ID)}
-            className="bg-slate-800 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1 w-20 focus:outline-none focus:border-indigo-500"
-          />
-          <button
-            onClick={scan}
-            disabled={loading}
-            className="text-sm px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-200 transition-colors flex items-center gap-1.5"
-          >
-            {loading ? (
-              <>
-                <span className="inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                Scanning...
-              </>
-            ) : (
-              <>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Rescan
-              </>
-            )}
-          </button>
-        </div>
+        <button
+          onClick={scan}
+          disabled={loading}
+          className="ml-auto text-sm px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-200 transition-colors flex items-center gap-1.5"
+        >
+          {loading ? (
+            <>
+              <span className="inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+              Loading...
+            </>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </>
+          )}
+        </button>
       </div>
 
       {/* Progress bar */}
@@ -192,7 +175,7 @@ export default function OverviewPage() {
           Top Users by Token Usage
           {users.length > 0 && (
             <span className="ml-2 text-slate-500 font-normal text-sm">
-              ({users.length} active)
+              ({users.length} active users)
             </span>
           )}
         </h2>
@@ -215,9 +198,7 @@ export default function OverviewPage() {
               {!loading && users.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
-                    {scanned > 0
-                      ? `No usage found in user IDs 1–${scanned}`
-                      : "Click Rescan to load data"}
+                    No usage data found
                   </td>
                 </tr>
               )}
