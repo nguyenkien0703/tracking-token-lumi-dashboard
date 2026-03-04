@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminToken } from "@/lib/auth";
+import { getDb } from "@/lib/db";
+import { syncIfStale, hasData, getSyncState } from "@/lib/sync";
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "";
-const PAGE_SIZE = 1000;
-const MAX_PAGES = 20; // up to 20,000 records
 
 interface UserInfo {
   firstName: string;
@@ -13,16 +13,15 @@ interface UserInfo {
   userName: string;
 }
 
-interface AggregatedUser {
+interface CachedUser extends UserInfo {
   userId: number;
-  totalTokens: number;
-  totalPromptTokens: number;
-  totalCompletionTokens: number;
-  totalCostUsd: number;
-  requestCount: number;
+  updatedAt: string;
 }
 
-async function fetchUserInfo(userId: number, token: string): Promise<UserInfo | null> {
+async function fetchAndCacheUserInfo(
+  userId: number,
+  token: string
+): Promise<UserInfo | null> {
   try {
     const res = await fetch(`${API_BASE_URL}/user/${userId}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -32,39 +31,33 @@ async function fetchUserInfo(userId: number, token: string): Promise<UserInfo | 
     const json = await res.json();
     const u = Array.isArray(json) ? json[0] : json;
     if (!u) return null;
-    return {
+
+    const info: UserInfo = {
       firstName: u.firstName ?? "",
       lastName: u.lastName ?? "",
       email: u.email ?? u.userName ?? "",
       avatarUrl: u.avatarUrl ?? null,
       userName: u.userName ?? "",
     };
+
+    const db = getDb();
+    db.prepare(`
+      INSERT OR REPLACE INTO users (userId, firstName, lastName, email, avatarUrl, userName, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      userId,
+      info.firstName,
+      info.lastName,
+      info.email,
+      info.avatarUrl,
+      info.userName,
+      new Date().toISOString()
+    );
+
+    return info;
   } catch {
     return null;
   }
-}
-
-async function fetchHistoryPage(
-  token: string,
-  from: string,
-  to: string,
-  limit: number,
-  offset: number
-): Promise<{ entries: Array<{ userId: number; promptTokens: number; completionTokens: number; totalTokens: number; totalCostUsd: number }>; total: number }> {
-  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-  if (from) params.set("from", from);
-  if (to) params.set("to", to);
-  const res = await fetch(`${API_BASE_URL}/api/v1/normal-mode/costs/history?${params}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
-  if (!res.ok) return { entries: [], total: 0 };
-  const json = await res.json();
-  const data = json?.data;
-  return {
-    entries: data?.entries ?? [],
-    total: data?.total ?? 0,
-  };
 }
 
 export async function GET(req: NextRequest) {
@@ -72,82 +65,73 @@ export async function GET(req: NextRequest) {
   const from = sp.get("from") ?? "";
   const to = sp.get("to") ?? "";
 
-  let token: string;
-  try {
-    token = await getAdminToken();
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 502 });
-  }
+  // Block on first load (empty DB), otherwise background sync
+  const dbEmpty = !hasData();
+  await syncIfStale(dbEmpty);
 
-  // Strategy 1: Fetch all history records (no userId filter) and group by userId
-  // This finds ALL users regardless of their ID
-  const aggregated = new Map<number, AggregatedUser>();
-  let totalRecords = 0;
-  let fetchedRecords = 0;
+  const db = getDb();
 
-  // First page — get total
-  const firstPage = await fetchHistoryPage(token, from, to, PAGE_SIZE, 0);
-  totalRecords = firstPage.total;
+  // Aggregate from DB
+  let query = `
+    SELECT
+      userId,
+      SUM(totalTokens)      AS totalTokens,
+      SUM(promptTokens)     AS totalPromptTokens,
+      SUM(completionTokens) AS totalCompletionTokens,
+      SUM(totalCostUsd)     AS totalCostUsd,
+      COUNT(*)              AS requestCount
+    FROM history_entries
+  `;
+  const params: string[] = [];
+  const conditions: string[] = [];
+  if (from) { conditions.push("createdAt >= ?"); params.push(from); }
+  if (to)   { conditions.push("createdAt <= ?"); params.push(to); }
+  if (conditions.length) query += ` WHERE ${conditions.join(" AND ")}`;
+  query += " GROUP BY userId ORDER BY totalTokens DESC LIMIT 100";
 
-  for (const e of firstPage.entries) {
-    const uid = e.userId;
-    if (!uid) continue;
-    const existing = aggregated.get(uid) ?? { userId: uid, totalTokens: 0, totalPromptTokens: 0, totalCompletionTokens: 0, totalCostUsd: 0, requestCount: 0 };
-    existing.totalTokens += e.totalTokens ?? 0;
-    existing.totalPromptTokens += e.promptTokens ?? 0;
-    existing.totalCompletionTokens += e.completionTokens ?? 0;
-    existing.totalCostUsd += e.totalCostUsd ?? 0;
-    existing.requestCount += 1;
-    aggregated.set(uid, existing);
-  }
-  fetchedRecords += firstPage.entries.length;
+  const rows = db.prepare(query).all(...params) as Array<{
+    userId: number;
+    totalTokens: number;
+    totalPromptTokens: number;
+    totalCompletionTokens: number;
+    totalCostUsd: number;
+    requestCount: number;
+  }>;
 
-  // If history API works (returns records without userId), paginate through all
-  if (totalRecords > PAGE_SIZE) {
-    const remainingPages = Math.min(Math.ceil((totalRecords - PAGE_SIZE) / PAGE_SIZE), MAX_PAGES - 1);
-    const pagePromises: Promise<void>[] = [];
+  // Get user info: DB cache first, fallback to API
+  let token: string | null = null;
+  try { token = await getAdminToken(); } catch { /* skip */ }
 
-    for (let page = 1; page <= remainingPages; page++) {
-      const offset = page * PAGE_SIZE;
-      pagePromises.push(
-        fetchHistoryPage(token, from, to, PAGE_SIZE, offset).then((result) => {
-          for (const e of result.entries) {
-            const uid = e.userId;
-            if (!uid) continue;
-            const existing = aggregated.get(uid) ?? { userId: uid, totalTokens: 0, totalPromptTokens: 0, totalCompletionTokens: 0, totalCostUsd: 0, requestCount: 0 };
-            existing.totalTokens += e.totalTokens ?? 0;
-            existing.totalPromptTokens += e.promptTokens ?? 0;
-            existing.totalCompletionTokens += e.completionTokens ?? 0;
-            existing.totalCostUsd += e.totalCostUsd ?? 0;
-            existing.requestCount += 1;
-            aggregated.set(uid, existing);
+  const users = await Promise.all(
+    rows.map(async (row) => {
+      const cached = db
+        .prepare("SELECT * FROM users WHERE userId = ?")
+        .get(row.userId) as CachedUser | undefined;
+
+      let info: UserInfo | null = cached
+        ? {
+            firstName: cached.firstName,
+            lastName: cached.lastName,
+            email: cached.email,
+            avatarUrl: cached.avatarUrl,
+            userName: cached.userName,
           }
-          fetchedRecords += result.entries.length;
-        })
-      );
-    }
-    await Promise.all(pagePromises);
-  }
+        : null;
 
-  // Sort by totalTokens descending, take top 100
-  const sorted = Array.from(aggregated.values())
-    .sort((a, b) => b.totalTokens - a.totalTokens)
-    .slice(0, 100);
+      if (!info && token) {
+        info = await fetchAndCacheUserInfo(row.userId, token);
+      }
 
-  // Fetch user info in parallel for top users
-  const infoResults = await Promise.allSettled(
-    sorted.map((u) => fetchUserInfo(u.userId, token))
+      return { ...row, info };
+    })
   );
 
-  const users = sorted.map((u, i) => {
-    const info = infoResults[i].status === "fulfilled" ? infoResults[i].value : null;
-    return { ...u, info };
-  });
+  const syncState = getSyncState();
 
   return NextResponse.json({
     users,
-    scanned: aggregated.size, // unique users found
-    totalRecords,
-    fetchedRecords,
+    totalRecords: syncState.totalRecords,
+    lastSyncAt: syncState.lastSyncAt,
+    syncStatus: syncState.status,
   });
 }

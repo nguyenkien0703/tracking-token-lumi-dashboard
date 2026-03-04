@@ -1,6 +1,8 @@
 # Stage 1: Install dependencies
 FROM node:20-alpine AS deps
 WORKDIR /app
+# python3, make, g++ required to compile better-sqlite3 native addon
+RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json* ./
 RUN npm ci
 
@@ -27,7 +29,13 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public 2>/dev/null || true
+COPY --from=builder /app/public ./public
+
+# better-sqlite3 native addon — Next.js file tracing may miss .node binaries
+COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+
+# Prepare data dir with correct ownership before volume mount
+RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 
 USER nextjs
 EXPOSE 3000

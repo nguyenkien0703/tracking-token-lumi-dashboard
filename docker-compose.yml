@@ -12,3 +12,6 @@ services:
       - API_BASE_URL=${API_BASE_URL}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - DB_PATH=${DB_PATH}
+    volumes:
+      - ./data:/app/data

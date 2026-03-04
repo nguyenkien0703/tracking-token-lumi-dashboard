@@ -52,7 +52,7 @@ export default function ModelBarChart({ modelUsage }: Props) {
           formatter={(value: number, name: string) =>
             name === "costUsd" ? [`$${value.toFixed(4)}`, "Cost USD"] : [value.toLocaleString(), "Tokens"]
           }
-          labelFormatter={(_, payload) => payload?.[0]?.payload?.fullModel ?? ""}
+          labelFormatter={(_: unknown, payload: Array<{ payload?: { fullModel?: string } }>) => payload?.[0]?.payload?.fullModel ?? ""}
         />
         <Bar dataKey="tokens" radius={[4, 4, 0, 0]}>
           {data.map((_, i) => (

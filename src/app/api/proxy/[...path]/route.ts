@@ -40,7 +40,22 @@ async function handler(req: NextRequest, context: Context) {
       upstreamRes = await doFetch(token);
     }
 
-    const responseBody = await upstreamRes.text();
+    let responseBody = await upstreamRes.text();
+
+    // FEATURE_DISABLED (403) → retry tối đa 2 lần (load balancing inconsistency giữa các instances)
+    if (upstreamRes.status === 403) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        let parsed: Record<string, unknown> = {};
+        try { parsed = JSON.parse(responseBody); } catch { break; }
+        if (parsed.code !== "FEATURE_DISABLED") break;
+        console.log(`[proxy] Got FEATURE_DISABLED — retrying (attempt ${attempt + 1})...`);
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        upstreamRes = await doFetch(token);
+        responseBody = await upstreamRes.text();
+        if (upstreamRes.status !== 403) break;
+      }
+    }
+
     return new NextResponse(responseBody, {
       status: upstreamRes.status,
       headers: { "Content-Type": "application/json" },

@@ -7,7 +7,6 @@ import { UserCostSummary, HistoryData, HistoryEntry, DateRange } from "@/types";
 import StatCard from "@/components/StatCard";
 import DateRangePicker from "@/components/DateRangePicker";
 import TokenLineChart from "@/components/TokenLineChart";
-import ModelBarChart from "@/components/ModelBarChart";
 import SessionTable from "@/components/SessionTable";
 
 const LIMIT = 50;
@@ -162,44 +161,15 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {/* Token Usage Over Time */}
-        <div className="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-xl p-5">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
           <h2 className="text-slate-200 font-semibold text-sm mb-4">Token Usage Over Time</h2>
           {chartEntries.length > 0 ? (
             <TokenLineChart entries={chartEntries} />
           ) : (
             <div className="h-48 flex items-center justify-center text-slate-500 text-sm animate-pulse">
               Loading chart...
-            </div>
-          )}
-        </div>
-
-        {/* Model Breakdown */}
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-          <h2 className="text-slate-200 font-semibold text-sm mb-4">Model Breakdown</h2>
-          {summary ? (
-            <ModelBarChart modelUsage={summary.modelUsage ?? {}} />
-          ) : (
-            <div className="h-48 flex items-center justify-center text-slate-500 text-sm animate-pulse">
-              Loading chart...
-            </div>
-          )}
-
-          {/* Model detail list */}
-          {summary && (
-            <div className="mt-3 space-y-1.5">
-              {Object.entries(summary.modelUsage ?? {}).map(([model, usage]) => (
-                <div key={model} className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-mono truncate max-w-[140px]" title={model}>
-                    {model}
-                  </span>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-indigo-300">{usage.tokens.toLocaleString()} tok</span>
-                    <span className="text-emerald-400">${usage.costUsd.toFixed(4)}</span>
-                  </div>
-                </div>
-              ))}
             </div>
           )}
         </div>

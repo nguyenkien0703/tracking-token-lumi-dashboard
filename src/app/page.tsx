@@ -24,6 +24,18 @@ interface TopUser {
   info: UserInfo | null;
 }
 
+function formatSyncAge(lastSyncAt: string | null): string {
+  if (!lastSyncAt) return "never synced";
+  const diffMs = Date.now() - new Date(lastSyncAt).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins === 1) return "1 minute ago";
+  if (mins < 60) return `${mins} minutes ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs === 1) return "1 hour ago";
+  return `${hrs} hours ago`;
+}
+
 export default function OverviewPage() {
   const router = useRouter();
   const [userIdInput, setUserIdInput] = useState("");
@@ -31,7 +43,10 @@ export default function OverviewPage() {
 
   const [users, setUsers] = useState<TopUser[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<string>("idle");
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +69,8 @@ export default function OverviewPage() {
       const data = await res.json();
       setUsers(data.users ?? []);
       setTotalRecords(data.totalRecords ?? 0);
+      setLastSyncAt(data.lastSyncAt ?? null);
+      setSyncStatus(data.syncStatus ?? "idle");
       setProgress(100);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
@@ -62,6 +79,21 @@ export default function OverviewPage() {
       setLoading(false);
     }
   }, [dateRange]);
+
+  const handleRefresh = useCallback(async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/sync", { method: "POST" });
+      if (!res.ok) throw new Error(`Sync failed: ${res.status}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sync failed");
+      setSyncing(false);
+      return;
+    }
+    setSyncing(false);
+    await scan();
+  }, [scan]);
 
   useEffect(() => {
     scan();
@@ -75,6 +107,7 @@ export default function OverviewPage() {
 
   const totalCost = users.reduce((s, u) => s + u.totalCostUsd, 0);
   const totalTokens = users.reduce((s, u) => s + u.totalTokens, 0);
+  const isBusy = loading || syncing;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -82,10 +115,21 @@ export default function OverviewPage() {
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-100">Overview</h1>
-          <p className="text-slate-400 text-sm mt-0.5">
+          <p className="text-slate-400 text-sm mt-0.5 flex items-center gap-2 flex-wrap">
             Top users by token usage
             {totalRecords > 0 && !loading && (
-              <span className="text-slate-500"> — from {totalRecords.toLocaleString()} total records</span>
+              <span className="text-slate-500">
+                — from {totalRecords.toLocaleString()} total records
+                {lastSyncAt && (
+                  <> · last synced {formatSyncAge(lastSyncAt)}</>
+                )}
+              </span>
+            )}
+            {syncStatus === "syncing" && (
+              <span className="inline-flex items-center gap-1 text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">
+                <span className="inline-block w-2 h-2 border border-amber-400 border-t-transparent rounded-full animate-spin" />
+                Syncing...
+              </span>
             )}
           </p>
         </div>
@@ -114,11 +158,16 @@ export default function OverviewPage() {
         </form>
 
         <button
-          onClick={scan}
-          disabled={loading}
+          onClick={handleRefresh}
+          disabled={isBusy}
           className="ml-auto text-sm px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-200 transition-colors flex items-center gap-1.5"
         >
-          {loading ? (
+          {syncing ? (
+            <>
+              <span className="inline-block w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+              Syncing...
+            </>
+          ) : loading ? (
             <>
               <span className="inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
               Loading...

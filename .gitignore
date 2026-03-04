@@ -20,6 +20,11 @@
 # debug
 npm-debug.log*
 
+# database
+/data/*.db
+/data/*.db-shm
+/data/*.db-wal
+
 # local env files (chứa credentials - KHÔNG commit)
 .env.local
 .env*.local
