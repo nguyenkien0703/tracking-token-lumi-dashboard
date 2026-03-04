@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminToken } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getPool } from "@/lib/db";
 import { syncIfStale, hasData, getSyncState } from "@/lib/sync";
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "";
@@ -11,11 +11,6 @@ interface UserInfo {
   email: string;
   avatarUrl: string | null;
   userName: string;
-}
-
-interface CachedUser extends UserInfo {
-  userId: number;
-  updatedAt: string;
 }
 
 async function fetchAndCacheUserInfo(
@@ -40,18 +35,14 @@ async function fetchAndCacheUserInfo(
       userName: u.userName ?? "",
     };
 
-    const db = getDb();
-    db.prepare(`
-      INSERT OR REPLACE INTO users (userId, firstName, lastName, email, avatarUrl, userName, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      userId,
-      info.firstName,
-      info.lastName,
-      info.email,
-      info.avatarUrl,
-      info.userName,
-      new Date().toISOString()
+    const pool = getPool();
+    await pool.query(
+      `INSERT INTO users ("userId", "firstName", "lastName", email, "avatarUrl", "userName", "updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT ("userId") DO UPDATE SET
+         "firstName"=$2, "lastName"=$3, email=$4,
+         "avatarUrl"=$5, "userName"=$6, "updatedAt"=$7`,
+      [userId, info.firstName, info.lastName, info.email, info.avatarUrl, info.userName, new Date().toISOString()]
     );
 
     return info;
@@ -65,38 +56,35 @@ export async function GET(req: NextRequest) {
   const from = sp.get("from") ?? "";
   const to = sp.get("to") ?? "";
 
-  // Block on first load (empty DB), otherwise background sync
-  const dbEmpty = !hasData();
+  // Block on first load (empty DB), background otherwise
+  const dbEmpty = !(await hasData());
   await syncIfStale(dbEmpty);
 
-  const db = getDb();
+  const pool = getPool();
 
-  // Aggregate from DB
-  let query = `
-    SELECT
-      userId,
-      SUM(totalTokens)      AS totalTokens,
-      SUM(promptTokens)     AS totalPromptTokens,
-      SUM(completionTokens) AS totalCompletionTokens,
-      SUM(totalCostUsd)     AS totalCostUsd,
-      COUNT(*)              AS requestCount
-    FROM history_entries
-  `;
-  const params: string[] = [];
+  // Build aggregate query with optional date filter
   const conditions: string[] = [];
-  if (from) { conditions.push("createdAt >= ?"); params.push(from); }
-  if (to)   { conditions.push("createdAt <= ?"); params.push(to); }
-  if (conditions.length) query += ` WHERE ${conditions.join(" AND ")}`;
-  query += " GROUP BY userId ORDER BY totalTokens DESC LIMIT 100";
+  const params: string[] = [];
+  let idx = 1;
+  if (from) { conditions.push(`"createdAt" >= $${idx++}`); params.push(from); }
+  if (to)   { conditions.push(`"createdAt" <= $${idx++}`); params.push(to); }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  const rows = db.prepare(query).all(...params) as Array<{
-    userId: number;
-    totalTokens: number;
-    totalPromptTokens: number;
-    totalCompletionTokens: number;
-    totalCostUsd: number;
-    requestCount: number;
-  }>;
+  const { rows } = await pool.query(
+    `SELECT
+       "userId",
+       SUM("totalTokens")::int      AS "totalTokens",
+       SUM("promptTokens")::int     AS "totalPromptTokens",
+       SUM("completionTokens")::int AS "totalCompletionTokens",
+       SUM("totalCostUsd")          AS "totalCostUsd",
+       COUNT(*)::int                AS "requestCount"
+     FROM history_entries
+     ${where}
+     GROUP BY "userId"
+     ORDER BY "totalTokens" DESC
+     LIMIT 100`,
+    params
+  );
 
   // Get user info: DB cache first, fallback to API
   let token: string | null = null;
@@ -104,19 +92,12 @@ export async function GET(req: NextRequest) {
 
   const users = await Promise.all(
     rows.map(async (row) => {
-      const cached = db
-        .prepare("SELECT * FROM users WHERE userId = ?")
-        .get(row.userId) as CachedUser | undefined;
+      const cached = await pool.query(
+        `SELECT "firstName","lastName",email,"avatarUrl","userName" FROM users WHERE "userId"=$1`,
+        [row.userId]
+      );
 
-      let info: UserInfo | null = cached
-        ? {
-            firstName: cached.firstName,
-            lastName: cached.lastName,
-            email: cached.email,
-            avatarUrl: cached.avatarUrl,
-            userName: cached.userName,
-          }
-        : null;
+      let info: UserInfo | null = cached.rows[0] ?? null;
 
       if (!info && token) {
         info = await fetchAndCacheUserInfo(row.userId, token);
@@ -126,7 +107,7 @@ export async function GET(req: NextRequest) {
     })
   );
 
-  const syncState = getSyncState();
+  const syncState = await getSyncState();
 
   return NextResponse.json({
     users,

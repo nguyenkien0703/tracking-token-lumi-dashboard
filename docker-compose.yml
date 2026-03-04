@@ -1,17 +1,36 @@
 version: "3.8"
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lumi
+      POSTGRES_USER: lumi
+      POSTGRES_PASSWORD: lumipass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lumi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   dashboard:
     build:
       context: .
     ports:
       - "${PORT:-3000}:3000"
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       - NODE_ENV=production
       - API_BASE_URL=${API_BASE_URL}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - DB_PATH=${DB_PATH}
-    volumes:
-      - ./data:/app/data
+      - DATABASE_URL=postgresql://lumi:lumipass@postgres:5432/lumi
+
+volumes:
+  postgres_data:

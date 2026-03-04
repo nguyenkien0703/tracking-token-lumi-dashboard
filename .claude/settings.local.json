@@ -3,7 +3,8 @@
     "allow": [
       "WebFetch(domain:lumilink-be-staging.defikit.net)",
       "Bash(curl:*)",
-      "Bash(make staging:*)"
+      "Bash(make staging:*)",
+      "Bash(docker-compose:*)"
     ]
   }
 }

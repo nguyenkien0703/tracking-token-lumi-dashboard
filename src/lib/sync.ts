@@ -1,10 +1,10 @@
-import { getDb } from "./db";
+import { getPool } from "./db";
 import { getAdminToken } from "./auth";
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "";
 const PAGE_SIZE = 1000;
 const MAX_RECORDS = 50000;
-const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
 let syncPromise: Promise<void> | null = null;
 
@@ -14,46 +14,34 @@ export interface SyncState {
   status: string;
 }
 
-export function getSyncState(): SyncState {
-  const db = getDb();
-  const row = db
-    .prepare("SELECT lastSyncAt, totalRecords, status FROM sync_state WHERE id = 1")
-    .get() as SyncState | undefined;
+export async function getSyncState(): Promise<SyncState> {
+  const pool = getPool();
+  const res = await pool.query(
+    `SELECT "lastSyncAt", "totalRecords", status FROM sync_state WHERE id = 1`
+  );
+  const row = res.rows[0];
   return row ?? { lastSyncAt: null, totalRecords: 0, status: "idle" };
 }
 
-function isStale(): boolean {
-  const state = getSyncState();
+async function isStale(): Promise<boolean> {
+  const state = await getSyncState();
   if (!state.lastSyncAt) return true;
   return Date.now() - new Date(state.lastSyncAt).getTime() > STALE_THRESHOLD_MS;
 }
 
-export function hasData(): boolean {
-  const db = getDb();
-  const row = db
-    .prepare("SELECT COUNT(*) as count FROM history_entries")
-    .get() as { count: number };
-  return row.count > 0;
+export async function hasData(): Promise<boolean> {
+  const pool = getPool();
+  const res = await pool.query(`SELECT COUNT(*)::int AS count FROM history_entries`);
+  return (res.rows[0]?.count ?? 0) > 0;
 }
 
 async function doSync(): Promise<void> {
-  const db = getDb();
+  const pool = getPool();
 
-  db.prepare("UPDATE sync_state SET status = 'syncing' WHERE id = 1").run();
+  await pool.query(`UPDATE sync_state SET status = 'syncing' WHERE id = 1`);
 
   try {
     const token = await getAdminToken();
-
-    const insert = db.prepare(`
-      INSERT OR REPLACE INTO history_entries
-        (id, userId, sessionId, model, promptTokens, completionTokens, totalTokens, totalCostUsd, createdAt)
-      VALUES
-        (@id, @userId, @sessionId, @model, @promptTokens, @completionTokens, @totalTokens, @totalCostUsd, @createdAt)
-    `);
-
-    const insertMany = db.transaction((entries: Array<Record<string, unknown>>) => {
-      for (const e of entries) insert.run(e);
-    });
 
     let offset = 0;
     let total = 0;
@@ -80,38 +68,51 @@ async function doSync(): Promise<void> {
       }
 
       const json = await res.json();
-      if (offset === 0) console.log("[sync] First response:", JSON.stringify(json).slice(0, 400));
       const data = json?.data;
       total = data?.total ?? 0;
       const entries: Array<Record<string, unknown>> = data?.entries ?? [];
 
       if (entries.length === 0) break;
 
-      const rows = entries.map((e) => ({
-        id: e.id,
-        userId: e.userId,
-        sessionId: e.sessionId ?? null,
-        model: e.model ?? null,
-        promptTokens: e.promptTokens ?? 0,
-        completionTokens: e.completionTokens ?? 0,
-        totalTokens: e.totalTokens ?? 0,
-        totalCostUsd: e.totalCostUsd ?? 0,
-        createdAt: e.createdAt ?? null,
-      }));
+      // Batch upsert
+      const values = entries.map((e) => [
+        e.id,
+        e.userId,
+        e.sessionId ?? null,
+        e.model ?? null,
+        e.promptTokens ?? 0,
+        e.completionTokens ?? 0,
+        e.totalTokens ?? 0,
+        e.totalCostUsd ?? 0,
+        e.createdAt ?? null,
+      ]);
 
-      insertMany(rows);
+      for (const row of values) {
+        await pool.query(
+          `INSERT INTO history_entries
+             (id, "userId", "sessionId", model, "promptTokens", "completionTokens", "totalTokens", "totalCostUsd", "createdAt")
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+           ON CONFLICT (id) DO UPDATE SET
+             "userId"=$2, "sessionId"=$3, model=$4,
+             "promptTokens"=$5, "completionTokens"=$6,
+             "totalTokens"=$7, "totalCostUsd"=$8, "createdAt"=$9`,
+          row
+        );
+      }
+
       fetched += entries.length;
       offset += PAGE_SIZE;
     } while (fetched < total && fetched < MAX_RECORDS);
 
-    db.prepare(
-      "UPDATE sync_state SET lastSyncAt = ?, totalRecords = ?, status = 'idle' WHERE id = 1"
-    ).run(new Date().toISOString(), total);
+    await pool.query(
+      `UPDATE sync_state SET "lastSyncAt"=$1, "totalRecords"=$2, status='idle' WHERE id=1`,
+      [new Date().toISOString(), total]
+    );
 
     console.log(`[sync] Done. total=${total}, fetched=${fetched}`);
   } catch (err) {
     console.error("[sync] Error:", err);
-    db.prepare("UPDATE sync_state SET status = 'error' WHERE id = 1").run();
+    await pool.query(`UPDATE sync_state SET status='error' WHERE id=1`);
     throw err;
   }
 }
@@ -119,10 +120,10 @@ async function doSync(): Promise<void> {
 /**
  * Trigger sync if data is stale.
  * - blocking=true: await completion (used when DB is empty)
- * - blocking=false: fire-and-forget (returns immediately)
+ * - blocking=false: fire-and-forget
  */
 export async function syncIfStale(blocking = false): Promise<void> {
-  if (!isStale()) return;
+  if (!(await isStale())) return;
 
   if (!syncPromise) {
     syncPromise = doSync().finally(() => {

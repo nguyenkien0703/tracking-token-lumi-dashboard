@@ -1,9 +1,7 @@
 staging:
-	mkdir -p data && chmod 777 data
 	docker-compose --env-file .env.staging up --build -d
 
 production:
-	mkdir -p data && chmod 777 data
 	docker-compose --env-file .env.production up --build -d
 
 down-staging:

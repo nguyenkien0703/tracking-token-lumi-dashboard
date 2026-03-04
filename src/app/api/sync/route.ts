@@ -3,7 +3,7 @@ import { getSyncState, forceSync } from "@/lib/sync";
 
 /** GET /api/sync — return current sync status */
 export async function GET() {
-  const state = getSyncState();
+  const state = await getSyncState();
   return NextResponse.json(state);
 }
 
@@ -11,7 +11,7 @@ export async function GET() {
 export async function POST() {
   try {
     await forceSync();
-    const state = getSyncState();
+    const state = await getSyncState();
     return NextResponse.json(state);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
