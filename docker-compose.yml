@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  dashboard:
+    build:
+      context: .
+      args:
+        # Đọc từ file .env.local khi build
+        - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+        - NEXT_PUBLIC_ADMIN_TOKEN=${NEXT_PUBLIC_ADMIN_TOKEN}
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
