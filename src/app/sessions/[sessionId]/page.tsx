@@ -13,6 +13,14 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
   const searchParams = useSearchParams();
   const fromUserId = searchParams.get("userId");
 
+
+
+
+
+
+
+
+  
   const [data, setData] = useState<UserCostSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
