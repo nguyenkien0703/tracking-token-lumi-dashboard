@@ -1,115 +1,294 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import DateRangePicker from "@/components/DateRangePicker";
+import { DateRange } from "@/types";
 
-const QUICK_USERS = [
-  { id: 57, label: "User #57" },
-];
+interface UserInfo {
+  firstName: string;
+  lastName: string;
+  email: string;
+  avatarUrl: string | null;
+  userName: string;
+}
+
+interface TopUser {
+  userId: number;
+  totalTokens: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
+  info: UserInfo | null;
+}
+
+const DEFAULT_MAX_ID = 200;
 
 export default function OverviewPage() {
   const router = useRouter();
   const [userIdInput, setUserIdInput] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
+  const [maxId, setMaxId] = useState(DEFAULT_MAX_ID);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [users, setUsers] = useState<TopUser[]>([]);
+  const [scanned, setScanned] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const scan = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setUsers([]);
+    setProgress(0);
+
+    // Animate progress while scanning
+    const progressInterval = setInterval(() => {
+      setProgress((p) => Math.min(p + 2, 90));
+    }, 200);
+
+    try {
+      const sp = new URLSearchParams({ maxId: String(maxId) });
+      if (dateRange.from) sp.set("from", dateRange.from);
+      if (dateRange.to) sp.set("to", dateRange.to);
+      const res = await fetch(`/api/users/top?${sp}`);
+      if (!res.ok) throw new Error(`Scan failed: ${res.status}`);
+      const data = await res.json();
+      setUsers(data.users ?? []);
+      setScanned(data.scanned ?? maxId);
+      setProgress(100);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Scan failed");
+    } finally {
+      clearInterval(progressInterval);
+      setLoading(false);
+    }
+  }, [maxId, dateRange]);
+
+  // Auto-scan on first load
+  useEffect(() => {
+    scan();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleUserSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const id = parseInt(userIdInput.trim());
     if (!isNaN(id) && id > 0) router.push(`/users/${id}`);
   };
 
+  const totalCost = users.reduce((s, u) => s + u.totalCostUsd, 0);
+  const totalTokens = users.reduce((s, u) => s + u.totalTokens, 0);
+
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-100">Lumi Token Dashboard</h1>
-        <p className="text-slate-400 text-sm mt-1">
-          Monitoring token usage & cost per user — powered by lumilink-be tracking API.
-        </p>
-      </div>
-
-      {/* Info box */}
-      <div className="bg-indigo-950/40 border border-indigo-800/50 rounded-xl p-5 max-w-2xl">
-        <div className="flex gap-3">
-          <svg className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div className="text-sm text-slate-300 space-y-1">
-            <p className="font-medium text-slate-200">Cách sử dụng</p>
-            <p>Nhập <strong>User ID</strong> để xem chi tiết token usage, cost theo session, và biểu đồ theo thời gian.</p>
-            <p className="text-slate-400 text-xs">
-              Tìm User ID trong URL chat app — VD: session <code className="bg-slate-800 px-1 rounded">abc-uuid-<strong className="text-indigo-300">57</strong></code> → userId = <strong className="text-indigo-300">57</strong>
-            </p>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">Overview</h1>
+          <p className="text-slate-400 text-sm mt-0.5">
+            Top users by token usage
+            {scanned > 0 && !loading && (
+              <span className="text-slate-500"> — scanned user IDs 1–{scanned}</span>
+            )}
+          </p>
         </div>
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
 
-      {/* Search */}
-      <div className="max-w-2xl space-y-4">
-        <form onSubmit={handleSubmit} className="flex gap-2">
+      {/* Controls */}
+      <div className="flex flex-wrap items-end gap-3">
+        {/* User search */}
+        <form onSubmit={handleUserSearch} className="flex items-center gap-2">
           <input
             type="number"
             min={1}
-            placeholder="Nhập User ID (VD: 57)"
+            placeholder="Jump to User ID..."
             value={userIdInput}
             onChange={(e) => setUserIdInput(e.target.value)}
-            autoFocus
-            className="flex-1 bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 placeholder:text-slate-500"
+            className="bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded-lg px-3 py-1.5 w-44 focus:outline-none focus:border-indigo-500 placeholder:text-slate-500"
           />
           <button
             type="submit"
-            disabled={!userIdInput.trim()}
-            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors whitespace-nowrap"
+            disabled={!userIdInput}
+            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
           >
-            View Detail →
+            View →
           </button>
         </form>
 
-        {/* Quick links */}
-        {QUICK_USERS.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-slate-500 text-xs">Quick:</span>
-            {QUICK_USERS.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => router.push(`/users/${u.id}`)}
-                className="text-xs px-3 py-1 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
-              >
-                {u.label}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Scan controls */}
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-slate-500 text-xs">Scan user IDs 1–</span>
+          <input
+            type="number"
+            min={10}
+            max={500}
+            value={maxId}
+            onChange={(e) => setMaxId(parseInt(e.target.value) || DEFAULT_MAX_ID)}
+            className="bg-slate-800 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1 w-20 focus:outline-none focus:border-indigo-500"
+          />
+          <button
+            onClick={scan}
+            disabled={loading}
+            className="text-sm px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-200 transition-colors flex items-center gap-1.5"
+          >
+            {loading ? (
+              <>
+                <span className="inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                Scanning...
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Rescan
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Feature cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl">
-        {[
-          {
-            icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-            title: "Token & Cost",
-            desc: "Tổng prompt/completion tokens và USD cost theo user và date range.",
-          },
-          {
-            icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
-            title: "Session History",
-            desc: "Lịch sử từng lượt chat với chi tiết inputCost, outputCost, model.",
-          },
-          {
-            icon: "M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z",
-            title: "Timeline Chart",
-            desc: "Biểu đồ tokens theo ngày để phân tích xu hướng sử dụng.",
-          },
-        ].map((card) => (
-          <div key={card.title} className="bg-slate-800/60 border border-slate-700 rounded-xl p-5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-900/50 flex items-center justify-center mb-3">
-              <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={card.icon} />
-              </svg>
-            </div>
-            <p className="text-slate-200 font-medium text-sm">{card.title}</p>
-            <p className="text-slate-400 text-xs mt-1">{card.desc}</p>
+      {/* Progress bar */}
+      {loading && (
+        <div className="w-full h-1 bg-slate-700 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      )}
+
+      {/* Summary stats */}
+      {users.length > 0 && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+            <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Active Users</p>
+            <p className="text-2xl font-bold text-indigo-400">{users.length}</p>
           </div>
-        ))}
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+            <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Total Tokens</p>
+            <p className="text-2xl font-bold text-indigo-400">{totalTokens.toLocaleString()}</p>
+          </div>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+            <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Total Cost</p>
+            <p className="text-2xl font-bold text-emerald-400">${totalCost.toFixed(4)}</p>
+            <p className="text-slate-500 text-xs mt-0.5">USD</p>
+          </div>
+        </div>
+      )}
+
+      {/* Top users table */}
+      <div>
+        <h2 className="text-slate-200 font-semibold mb-3">
+          Top Users by Token Usage
+          {users.length > 0 && (
+            <span className="ml-2 text-slate-500 font-normal text-sm">
+              ({users.length} active)
+            </span>
+          )}
+        </h2>
+
+        <div className="overflow-x-auto rounded-xl border border-slate-700">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
+              <tr>
+                <th className="px-4 py-3 w-10 text-center">Rank</th>
+                <th className="px-4 py-3">User</th>
+                <th className="px-4 py-3 text-right">Total Tokens</th>
+                <th className="px-4 py-3 text-right">Prompt</th>
+                <th className="px-4 py-3 text-right">Completion</th>
+                <th className="px-4 py-3 text-right">Requests</th>
+                <th className="px-4 py-3 text-right">Total Cost</th>
+                <th className="px-4 py-3 text-right">Avg / Request</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700/50">
+              {!loading && users.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                    {scanned > 0
+                      ? `No usage found in user IDs 1–${scanned}`
+                      : "Click Rescan to load data"}
+                  </td>
+                </tr>
+              )}
+              {users.map((u, i) => (
+                <tr key={u.userId} className="bg-slate-900/50 hover:bg-slate-800/60 transition-colors">
+                  <td className="px-4 py-3 text-center">
+                    {i === 0 ? (
+                      <span className="text-amber-400 font-bold">🥇</span>
+                    ) : i === 1 ? (
+                      <span className="text-slate-400 font-bold">🥈</span>
+                    ) : i === 2 ? (
+                      <span className="text-amber-700 font-bold">🥉</span>
+                    ) : (
+                      <span className="text-slate-500 text-xs">{i + 1}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link href={`/users/${u.userId}`} className="flex items-center gap-2.5 group">
+                      {u.info?.avatarUrl ? (
+                        <img
+                          src={u.info.avatarUrl}
+                          alt=""
+                          className="w-7 h-7 rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-indigo-900 flex items-center justify-center shrink-0 text-xs font-bold text-indigo-300">
+                          {u.info ? u.info.firstName[0] : "#"}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        {u.info ? (
+                          <>
+                            <p className="text-slate-200 text-sm font-medium group-hover:text-indigo-300 transition-colors truncate">
+                              {u.info.firstName} {u.info.lastName}
+                            </p>
+                            <p className="text-slate-500 text-xs truncate">{u.info.email}</p>
+                          </>
+                        ) : (
+                          <p className="text-indigo-400 group-hover:text-indigo-300 font-medium">
+                            #{u.userId}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-indigo-300">
+                    {u.totalTokens.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-400 text-xs">
+                    {u.totalPromptTokens.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-400 text-xs">
+                    {u.totalCompletionTokens.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-300">
+                    {u.requestCount}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-emerald-400">
+                    ${u.totalCostUsd.toFixed(4)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-400 text-xs">
+                    {u.requestCount > 0
+                      ? Math.round(u.totalTokens / u.requestCount).toLocaleString()
+                      : "—"}{" "}
+                    tok
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

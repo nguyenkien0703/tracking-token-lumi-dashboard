@@ -34,6 +34,7 @@ export default function SessionTable({
         <table className="w-full text-sm text-left">
           <thead className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
             <tr>
+              <th className="px-3 py-3 w-10 text-center">#</th>
               <th className="px-3 py-3">Session ID</th>
               {showUserId && <th className="px-3 py-3">User</th>}
               <th className="px-3 py-3">Model</th>
@@ -51,15 +52,18 @@ export default function SessionTable({
             {entries.length === 0 && (
               <tr>
                 <td
-                  colSpan={showUserId ? 11 : 10}
+                  colSpan={showUserId ? 12 : 11}
                   className="px-4 py-10 text-center text-slate-500"
                 >
                   No records found
                 </td>
               </tr>
             )}
-            {entries.map((e) => (
+            {entries.map((e, i) => (
               <tr key={e.id} className="bg-slate-900/50 hover:bg-slate-800/60 transition-colors">
+                <td className="px-3 py-2.5 text-center text-slate-500 text-xs tabular-nums">
+                  {offset + i + 1}
+                </td>
                 <td className="px-3 py-2.5 font-mono text-xs">
                   <Link
                     href={`/sessions/${e.sessionId}`}

@@ -86,7 +86,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
             />
             <StatCard
               label="Models"
-              value={Object.keys(data.modelUsage).length}
+              value={Object.keys(data.modelUsage ?? {}).length}
               accent="indigo"
             />
           </div>
@@ -95,13 +95,13 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
               <h2 className="text-slate-200 font-semibold text-sm mb-4">Model Usage</h2>
-              <ModelBarChart modelUsage={data.modelUsage} />
+              <ModelBarChart modelUsage={data.modelUsage ?? {}} />
             </div>
 
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
               <h2 className="text-slate-200 font-semibold text-sm mb-4">Model Detail</h2>
               <div className="space-y-3">
-                {Object.entries(data.modelUsage).map(([model, usage]) => (
+                {Object.entries(data.modelUsage ?? {}).map(([model, usage]) => (
                   <div
                     key={model}
                     className="flex flex-col gap-1 border-b border-slate-700 pb-3 last:border-0 last:pb-0"

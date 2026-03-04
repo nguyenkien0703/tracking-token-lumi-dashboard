@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { getUserCost, getHistory } from "@/lib/api";
-import { UserCostSummary, HistoryData, DateRange } from "@/types";
+import { UserCostSummary, HistoryData, HistoryEntry, DateRange } from "@/types";
 import StatCard from "@/components/StatCard";
 import DateRangePicker from "@/components/DateRangePicker";
 import TokenLineChart from "@/components/TokenLineChart";
@@ -15,13 +15,25 @@ const LIMIT = 50;
 export default function UserDetailPage({ params }: { params: { userId: string } }) {
   const userId = parseInt(params.userId);
 
+  const [userInfo, setUserInfo] = useState<{ firstName: string; lastName: string; email: string; avatarUrl: string | null } | null>(null);
   const [summary, setSummary] = useState<UserCostSummary | null>(null);
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
+  const [chartEntries, setChartEntries] = useState<HistoryEntry[]>([]);
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [offset, setOffset] = useState(0);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/proxy/user/${userId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        const u = Array.isArray(json) ? json[0] : json?.data?.[0] ?? json?.data;
+        if (u) setUserInfo({ firstName: u.firstName, lastName: u.lastName, email: u.email, avatarUrl: u.avatarUrl ?? null });
+      })
+      .catch(() => null);
+  }, [userId]);
 
   const fetchSummary = useCallback(async () => {
     setLoadingSummary(true);
@@ -38,6 +50,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
   const fetchHistory = useCallback(async () => {
     setLoadingHistory(true);
     try {
+      // Fetch paginated data for table
       const data = await getHistory({
         userId,
         from: dateRange.from || undefined,
@@ -46,6 +59,18 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
         offset,
       });
       setHistoryData(data);
+
+      // Fetch all entries (up to 500) for chart — only when date/user changes (not pagination)
+      if (offset === 0) {
+        const allData = await getHistory({
+          userId,
+          from: dateRange.from || undefined,
+          to: dateRange.to || undefined,
+          limit: 500,
+          offset: 0,
+        });
+        setChartEntries(allData.entries);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load history");
     } finally {
@@ -68,15 +93,29 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
       {/* Breadcrumb + Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
+          <div className="flex items-center gap-2 text-sm text-slate-400 mb-2">
             <Link href="/" className="hover:text-slate-200 transition-colors">Overview</Link>
             <span>/</span>
             <span className="text-slate-200">User #{userId}</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-100">User #{userId}</h1>
-          {isLoading && (
-            <span className="text-slate-500 text-xs animate-pulse">Fetching data...</span>
-          )}
+          <div className="flex items-center gap-3">
+            {userInfo?.avatarUrl ? (
+              <img src={userInfo.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-300 font-bold">
+                {userInfo ? userInfo.firstName[0] : "#"}
+              </div>
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-slate-100">
+                {userInfo ? `${userInfo.firstName} ${userInfo.lastName}` : `User #${userId}`}
+              </h1>
+              {userInfo && (
+                <p className="text-slate-400 text-sm">{userInfo.email} · <span className="text-slate-500">#{userId}</span></p>
+              )}
+            </div>
+          </div>
+          {isLoading && <span className="text-slate-500 text-xs animate-pulse mt-1 block">Fetching data...</span>}
         </div>
         <DateRangePicker value={dateRange} onChange={handleDateChange} />
       </div>
@@ -127,8 +166,8 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
         {/* Token Usage Over Time */}
         <div className="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-xl p-5">
           <h2 className="text-slate-200 font-semibold text-sm mb-4">Token Usage Over Time</h2>
-          {historyData ? (
-            <TokenLineChart entries={historyData.entries} />
+          {chartEntries.length > 0 ? (
+            <TokenLineChart entries={chartEntries} />
           ) : (
             <div className="h-48 flex items-center justify-center text-slate-500 text-sm animate-pulse">
               Loading chart...

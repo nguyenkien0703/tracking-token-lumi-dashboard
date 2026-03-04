@@ -18,18 +18,19 @@ interface Props {
 }
 
 export default function TokenLineChart({ entries }: Props) {
-  const byDay: Record<string, { date: string; tokens: number; cost: number; requests: number }> =
-    {};
+  // key = "YYYY-MM-DD" for sorting, label = "MM/dd" for display
+  const byDay: Record<string, { key: string; date: string; tokens: number; cost: number; requests: number }> = {};
 
   for (const e of entries) {
-    const day = format(parseISO(e.createdAt), "MM/dd");
-    if (!byDay[day]) byDay[day] = { date: day, tokens: 0, cost: 0, requests: 0 };
-    byDay[day].tokens += e.totalTokens;
-    byDay[day].cost = parseFloat((byDay[day].cost + e.totalCostUsd).toFixed(4));
-    byDay[day].requests += 1;
+    const key = format(parseISO(e.createdAt), "yyyy-MM-dd");
+    const label = format(parseISO(e.createdAt), "MM/dd");
+    if (!byDay[key]) byDay[key] = { key, date: label, tokens: 0, cost: 0, requests: 0 };
+    byDay[key].tokens += e.totalTokens;
+    byDay[key].cost = parseFloat((byDay[key].cost + e.totalCostUsd).toFixed(4));
+    byDay[key].requests += 1;
   }
 
-  const data = Object.values(byDay);
+  const data = Object.values(byDay).sort((a, b) => a.key.localeCompare(b.key));
 
   if (data.length === 0) {
     return (
