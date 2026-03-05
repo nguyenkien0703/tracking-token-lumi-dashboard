@@ -4,7 +4,8 @@
       "WebFetch(domain:lumilink-be-staging.defikit.net)",
       "Bash(curl:*)",
       "Bash(make staging:*)",
-      "Bash(docker-compose:*)"
+      "Bash(docker-compose:*)",
+      "Bash(open:*)"
     ]
   }
 }

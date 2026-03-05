@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import DateRangePicker from "@/components/DateRangePicker";
@@ -24,16 +24,22 @@ interface TopUser {
   info: UserInfo | null;
 }
 
-function formatSyncAge(lastSyncAt: string | null): string {
-  if (!lastSyncAt) return "never synced";
-  const diffMs = Date.now() - new Date(lastSyncAt).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "just now";
-  if (mins === 1) return "1 minute ago";
-  if (mins < 60) return `${mins} minutes ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs === 1) return "1 hour ago";
-  return `${hrs} hours ago`;
+const SYNC_INTERVAL = 5 * 60; // 5 minutes in seconds
+
+function formatCountdown(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function formatUpdatedTime(lastSyncAt: string | null): string {
+  if (!lastSyncAt) return "";
+  return new Date(lastSyncAt).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
 }
 
 export default function OverviewPage() {
@@ -49,6 +55,8 @@ export default function OverviewPage() {
   const [syncing, setSyncing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(SYNC_INTERVAL);
+  const scanRef = useRef<() => Promise<void>>(async () => {});
 
   const scan = useCallback(async () => {
     setLoading(true);
@@ -93,11 +101,29 @@ export default function OverviewPage() {
     }
     setSyncing(false);
     await scan();
+    setCountdown(SYNC_INTERVAL);
   }, [scan]);
+
+  // Keep ref updated so timer always calls latest scan
+  useEffect(() => { scanRef.current = scan; }, [scan]);
 
   useEffect(() => {
     scan();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Countdown timer — auto-scan every 5 minutes
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          scanRef.current();
+          return SYNC_INTERVAL;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleUserSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +147,7 @@ export default function OverviewPage() {
               <span className="text-slate-500">
                 — from {totalRecords.toLocaleString()} total records
                 {lastSyncAt && (
-                  <> · last synced {formatSyncAge(lastSyncAt)}</>
+                  <> · updated {formatUpdatedTime(lastSyncAt)}</>
                 )}
               </span>
             )}
@@ -137,7 +163,7 @@ export default function OverviewPage() {
       </div>
 
       {/* Controls */}
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {/* User search */}
         <form onSubmit={handleUserSearch} className="flex items-center gap-2">
           <input
@@ -157,31 +183,61 @@ export default function OverviewPage() {
           </button>
         </form>
 
-        <button
-          onClick={handleRefresh}
-          disabled={isBusy}
-          className="ml-auto text-sm px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-200 transition-colors flex items-center gap-1.5"
-        >
-          {syncing ? (
-            <>
-              <span className="inline-block w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-              Syncing...
-            </>
-          ) : loading ? (
-            <>
-              <span className="inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-              Loading...
-            </>
-          ) : (
-            <>
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </>
+        {/* Sync status bar */}
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
+          {lastSyncAt && !loading && (
+            <span className="text-slate-400 text-xs bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">
+              Updated {formatUpdatedTime(lastSyncAt)}
+            </span>
           )}
-        </button>
+
+          {!syncing && (
+            <span className="text-slate-300 text-xs bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap flex items-center gap-1.5">
+              {loading ? (
+                <>
+                  <span className="inline-block w-2.5 h-2.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Next refresh in{" "}
+                  <span className={`font-mono font-semibold ${countdown <= 30 ? "text-amber-400" : "text-slate-200"}`}>
+                    {formatCountdown(countdown)}
+                  </span>
+                </>
+              )}
+            </span>
+          )}
+
+          <button
+            onClick={handleRefresh}
+            disabled={isBusy}
+            className="text-sm px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white transition-colors flex items-center gap-1.5 whitespace-nowrap"
+          >
+            {syncing ? (
+              <>
+                <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Syncing...
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh Now
+              </>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Auto-sync hint */}
+      <p className="text-slate-600 text-xs -mt-3">
+        Auto-syncs every 5 minutes
+      </p>
 
       {/* Progress bar */}
       {loading && (
