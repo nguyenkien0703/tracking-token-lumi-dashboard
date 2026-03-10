@@ -95,22 +95,24 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
           <div className="flex items-center gap-2 text-sm text-slate-400 mb-2">
             <Link href="/" className="hover:text-slate-200 transition-colors">Overview</Link>
             <span>/</span>
-            <span className="text-slate-200">User #{userId}</span>
+            <span className="text-slate-200">
+              {userInfo ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || userInfo.email || "User Detail" : "User Detail"}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {userInfo?.avatarUrl ? (
               <img src={userInfo.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-300 font-bold">
-                {userInfo ? (userInfo.firstName?.[0] ?? userInfo.lastName?.[0] ?? "#") : "#"}
+                {userInfo ? (userInfo.firstName?.[0] ?? userInfo.lastName?.[0] ?? userInfo.email?.[0] ?? "U") : "U"}
               </div>
             )}
             <div>
               <h1 className="text-2xl font-bold text-slate-100">
-                {userInfo ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || `User #${userId}` : `User #${userId}`}
+                {userInfo ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || userInfo.email || "User Detail" : "User Detail"}
               </h1>
-              {userInfo && (
-                <p className="text-slate-400 text-sm">{userInfo.email} · <span className="text-slate-500">#{userId}</span></p>
+              {userInfo?.email && (
+                <p className="text-slate-400 text-sm">{userInfo.email}</p>
               )}
             </div>
           </div>
@@ -165,11 +167,15 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
         {/* Token Usage Over Time */}
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
           <h2 className="text-slate-200 font-semibold text-sm mb-4">Token Usage Over Time</h2>
-          {chartEntries.length > 0 ? (
-            <TokenLineChart entries={chartEntries} />
-          ) : (
+          {loadingHistory ? (
             <div className="h-48 flex items-center justify-center text-slate-500 text-sm animate-pulse">
               Loading chart...
+            </div>
+          ) : chartEntries.length > 0 ? (
+            <TokenLineChart entries={chartEntries} />
+          ) : (
+            <div className="h-48 flex items-center justify-center text-slate-500 text-sm">
+              No usage data
             </div>
           )}
         </div>
