@@ -38,9 +38,9 @@ function MessageCard({ msg }: { msg: TurnMessage }) {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <RoleBadge role={msg.role} />
-          {msg.metadata?.model && (
+          {typeof msg.metadata?.model === "string" && (
             <span className="text-xs font-mono text-slate-400">
-              {msg.metadata.model as string}
+              {msg.metadata.model}
             </span>
           )}
         </div>
