@@ -1,4 +1,4 @@
-import { UserCostSummary, HistoryData, SessionMessagesResponse } from "@/types";
+import { UserCostSummary, HistoryData, SessionMessagesResponse, MessageCostDetail } from "@/types";
 
 // Tất cả API calls đi qua proxy — token được quản lý hoàn toàn server-side
 const PROXY = "/api/proxy";
@@ -47,15 +47,30 @@ export async function getSessionCost(sessionId: string): Promise<UserCostSummary
   return apiFetch(`api/v1/normal-mode/costs/session/${sessionId}`);
 }
 
+export async function getMessageCostDetail(
+  sessionId: string,
+  messageId: number
+): Promise<MessageCostDetail> {
+  return apiFetch(
+    `api/v1/normal-mode/costs/session/${sessionId}/message/${messageId}`
+  );
+}
+
 export async function getSessionMessages(
   sessionId: string,
-  page = 1,
-  limit = 20
+  offset = 0,
+  limit = 20,
+  order: "asc" | "desc" = "asc"
 ): Promise<SessionMessagesResponse> {
-  const sp = new URLSearchParams({ page: String(page), limit: String(limit) });
-  const res = await fetch(`${PROXY}/chat-sessions/${sessionId}/messages?${sp.toString()}`, {
-    cache: "no-store",
+  const sp = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+    order,
   });
+  const res = await fetch(
+    `${PROXY}/api/v1/normal-mode/costs/session/${sessionId}/messages?${sp.toString()}`,
+    { cache: "no-store" }
+  );
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
     throw new Error(json.error ?? `API ${res.status}: request failed`);

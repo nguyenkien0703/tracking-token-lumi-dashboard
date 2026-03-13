@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { getSessionCost, getSessionMessages } from "@/lib/api";
-import { UserCostSummary, TurnMessage, SessionMessagesPagination } from "@/types";
+import { getSessionCost, getSessionMessages, getMessageCostDetail } from "@/lib/api";
+import { UserCostSummary, TurnMessage, SessionMessagesPagination, MessageCostDetail } from "@/types";
 import StatCard from "@/components/StatCard";
 import ModelBarChart from "@/components/ModelBarChart";
 
 const PAGE_LIMIT = 20;
+const ORDER: "asc" | "desc" = "asc";
 
 function RoleBadge({ role }: { role: TurnMessage["role"] }) {
   const map = {
@@ -25,12 +26,37 @@ function RoleBadge({ role }: { role: TurnMessage["role"] }) {
   );
 }
 
-function MessageCard({ msg }: { msg: TurnMessage }) {
+function MessageCard({
+  msg,
+  sessionId,
+}: {
+  msg: TurnMessage;
+  sessionId: string;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detail, setDetail] = useState<MessageCostDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
   const cost = msg.costs[0];
   const isLong = msg.content.length > 400;
   const displayContent =
     isLong && !expanded ? msg.content.slice(0, 400) + "…" : msg.content;
+
+  const toggleDetail = () => {
+    if (!detailOpen && !detail) {
+      setDetailLoading(true);
+      setDetailError(null);
+      getMessageCostDetail(sessionId, msg.id)
+        .then(setDetail)
+        .catch((err) =>
+          setDetailError(err instanceof Error ? err.message : "Failed to load")
+        )
+        .finally(() => setDetailLoading(false));
+    }
+    setDetailOpen((v) => !v);
+  };
 
   return (
     <div className="border border-slate-700 rounded-xl bg-slate-800/60 p-4 space-y-3">
@@ -43,10 +69,19 @@ function MessageCard({ msg }: { msg: TurnMessage }) {
               {msg.metadata.model}
             </span>
           )}
+          <span className="text-xs font-mono text-slate-600">#{msg.id}</span>
         </div>
-        <span className="text-xs text-slate-500 shrink-0">
-          {new Date(msg.createdAt).toLocaleString()}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500 shrink-0">
+            {new Date(msg.createdAt).toLocaleString()}
+          </span>
+          <button
+            onClick={toggleDetail}
+            className="text-xs px-2 py-0.5 rounded border border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors"
+          >
+            {detailOpen ? "Hide Cost" : "Cost Detail"}
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -62,7 +97,7 @@ function MessageCard({ msg }: { msg: TurnMessage }) {
         )}
       </div>
 
-      {/* Cost row */}
+      {/* Basic cost row */}
       {cost && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs border-t border-slate-700 pt-2 mt-1">
           <span className="text-slate-500">
@@ -73,7 +108,10 @@ function MessageCard({ msg }: { msg: TurnMessage }) {
             <span className="text-slate-600">
               {" "}(in {cost.promptTokens.toLocaleString()} / out{" "}
               {cost.completionTokens.toLocaleString()}
-              {cost.cacheReadTokens > 0 ? ` / cache ${cost.cacheReadTokens.toLocaleString()}` : ""})
+              {cost.cacheReadTokens > 0
+                ? ` / cache ${cost.cacheReadTokens.toLocaleString()}`
+                : ""}
+              )
             </span>
           </span>
           <span className="text-slate-500">
@@ -83,9 +121,104 @@ function MessageCard({ msg }: { msg: TurnMessage }) {
             </span>
           </span>
           {cost.langsmithRunId && (
-            <span className="text-slate-600 font-mono truncate max-w-xs" title={cost.langsmithRunId}>
+            <span
+              className="text-slate-600 font-mono truncate max-w-xs"
+              title={cost.langsmithRunId}
+            >
               run: {cost.langsmithRunId}
             </span>
+          )}
+        </div>
+      )}
+
+      {/* Cost Detail Panel */}
+      {detailOpen && (
+        <div className="border-t border-slate-700 pt-3 mt-1 space-y-3">
+          {detailLoading && (
+            <div className="space-y-2">
+              {[1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-8 rounded-lg bg-slate-700/50 animate-pulse"
+                />
+              ))}
+            </div>
+          )}
+
+          {detailError && (
+            <p className="text-xs text-red-400">{detailError}</p>
+          )}
+
+          {detail && !detailLoading && (
+            <>
+              {/* Summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { label: "Prompt", value: detail.summary.totalPromptTokens.toLocaleString(), unit: "tok" },
+                  { label: "Completion", value: detail.summary.totalCompletionTokens.toLocaleString(), unit: "tok" },
+                  { label: "Total Tokens", value: detail.summary.totalTokens.toLocaleString(), unit: "tok" },
+                  { label: "Cost", value: `$${detail.summary.totalCostUsd.toFixed(6)}`, unit: "" },
+                ].map((s) => (
+                  <div
+                    key={s.label}
+                    className="bg-slate-900/60 rounded-lg px-3 py-2 text-center"
+                  >
+                    <p className="text-slate-500 text-xs">{s.label}</p>
+                    <p className="text-slate-200 font-semibold text-sm">
+                      {s.value}
+                      {s.unit && (
+                        <span className="text-slate-600 font-normal text-xs ml-1">
+                          {s.unit}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Entries table */}
+              {detail.entries.length > 0 && (
+                <div className="overflow-x-auto rounded-lg border border-slate-700">
+                  <table className="w-full text-xs text-slate-300">
+                    <thead className="bg-slate-900/60 text-slate-500">
+                      <tr>
+                        <th className="text-left px-3 py-2">Model</th>
+                        <th className="text-right px-3 py-2">Prompt</th>
+                        <th className="text-right px-3 py-2">Completion</th>
+                        <th className="text-right px-3 py-2">Cache</th>
+                        <th className="text-right px-3 py-2">Total</th>
+                        <th className="text-right px-3 py-2">Cost (USD)</th>
+                        <th className="text-right px-3 py-2">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.entries.map((e, i) => (
+                        <tr
+                          key={i}
+                          className="border-t border-slate-800 hover:bg-slate-700/30"
+                        >
+                          <td className="px-3 py-2 font-mono text-slate-400 max-w-[180px] truncate" title={e.model}>
+                            {e.model}
+                          </td>
+                          <td className="px-3 py-2 text-right">{e.promptTokens.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right">{e.completionTokens.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right">{e.cacheReadTokens.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right text-indigo-300 font-semibold">
+                            {e.totalTokens.toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2 text-right text-emerald-400 font-semibold">
+                            ${e.totalCostUsd.toFixed(6)}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-500">
+                            {new Date(e.createdAt).toLocaleTimeString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -104,7 +237,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
 
   const [messages, setMessages] = useState<TurnMessage[]>([]);
   const [pagination, setPagination] = useState<SessionMessagesPagination | null>(null);
-  const [msgPage, setMsgPage] = useState(1);
+  const [offset, setOffset] = useState(0);
   const [msgLoading, setMsgLoading] = useState(false);
   const [msgError, setMsgError] = useState<string | null>(null);
 
@@ -116,10 +249,10 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
   }, [sessionId]);
 
   const loadMessages = useCallback(
-    (page: number) => {
+    (off: number) => {
       setMsgLoading(true);
       setMsgError(null);
-      getSessionMessages(sessionId, page, PAGE_LIMIT)
+      getSessionMessages(sessionId, off, PAGE_LIMIT, ORDER)
         .then(({ data, pagination }) => {
           setMessages(data);
           setPagination(pagination);
@@ -133,13 +266,16 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
   );
 
   useEffect(() => {
-    loadMessages(1);
+    loadMessages(0);
   }, [loadMessages]);
 
-  const goToPage = (page: number) => {
-    setMsgPage(page);
-    loadMessages(page);
+  const goToOffset = (off: number) => {
+    setOffset(off);
+    loadMessages(off);
   };
+
+  const currentPage = Math.floor(offset / PAGE_LIMIT) + 1;
+  const totalPages = pagination ? Math.ceil(pagination.total / PAGE_LIMIT) : 1;
 
   const shortId = sessionId.length > 20 ? `${sessionId.slice(0, 16)}…` : sessionId;
 
@@ -259,9 +395,9 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
               </span>
             )}
           </h2>
-          {pagination && pagination.totalPages > 1 && (
+          {pagination && totalPages > 1 && (
             <span className="text-xs text-slate-500">
-              Page {msgPage} / {pagination.totalPages}
+              Page {currentPage} / {totalPages}
             </span>
           )}
         </div>
@@ -287,16 +423,16 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
         {!msgLoading && messages.length > 0 && (
           <div className="space-y-3">
             {messages.map((msg) => (
-              <MessageCard key={msg.id} msg={msg} />
+              <MessageCard key={msg.id} msg={msg} sessionId={sessionId} />
             ))}
           </div>
         )}
 
         {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
+        {pagination && totalPages > 1 && (
           <div className="flex items-center justify-between pt-2">
             <button
-              onClick={() => goToPage(msgPage - 1)}
+              onClick={() => goToOffset(offset - PAGE_LIMIT)}
               disabled={!pagination.hasPrev || msgLoading}
               className="px-3 py-1.5 text-xs rounded-lg border border-slate-600 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 transition-colors"
             >
@@ -304,12 +440,12 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
             </button>
 
             <div className="flex items-center gap-1">
-              {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(
                   (p) =>
                     p === 1 ||
-                    p === pagination.totalPages ||
-                    Math.abs(p - msgPage) <= 1
+                    p === totalPages ||
+                    Math.abs(p - currentPage) <= 1
                 )
                 .reduce<(number | "…")[]>((acc, p, idx, arr) => {
                   if (idx > 0 && typeof arr[idx - 1] === "number" && (arr[idx - 1] as number) < p - 1) {
@@ -324,10 +460,10 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
                   ) : (
                     <button
                       key={item}
-                      onClick={() => goToPage(item as number)}
+                      onClick={() => goToOffset(((item as number) - 1) * PAGE_LIMIT)}
                       disabled={msgLoading}
                       className={`w-7 h-7 text-xs rounded-lg border transition-colors ${
-                        item === msgPage
+                        item === currentPage
                           ? "bg-indigo-600 border-indigo-500 text-white"
                           : "border-slate-600 text-slate-400 hover:bg-slate-700"
                       } disabled:opacity-40`}
@@ -339,7 +475,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
             </div>
 
             <button
-              onClick={() => goToPage(msgPage + 1)}
+              onClick={() => goToOffset(offset + PAGE_LIMIT)}
               disabled={!pagination.hasNext || msgLoading}
               className="px-3 py-1.5 text-xs rounded-lg border border-slate-600 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 transition-colors"
             >

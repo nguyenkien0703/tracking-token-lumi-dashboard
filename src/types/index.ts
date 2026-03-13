@@ -66,10 +66,9 @@ export interface TurnMessage {
 }
 
 export interface SessionMessagesPagination {
-  page: number;
   limit: number;
+  offset: number;
   total: number;
-  totalPages: number;
   hasNext: boolean;
   hasPrev: boolean;
 }
@@ -77,4 +76,37 @@ export interface SessionMessagesPagination {
 export interface SessionMessagesResponse {
   data: TurnMessage[];
   pagination: SessionMessagesPagination;
+}
+
+export interface MessageCostEntry {
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  cacheReadTokens: number;
+  totalTokens: number;
+  inputCostUsd: number;
+  outputCostUsd: number;
+  totalCostUsd: number;
+  langsmithRunId: string | null;
+  createdAt: string;
+}
+
+export interface MessageCostSummary {
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
+}
+
+export interface MessageCostDetail {
+  message: {
+    sessionId: string;
+    messageId: number;
+    messagePublicId: string | null;
+    role: string;
+    messageCreatedAt: string;
+  };
+  summary: MessageCostSummary;
+  entries: MessageCostEntry[];
 }
