@@ -40,7 +40,7 @@ function MessageEntryCard({ entry, index }: { entry: SessionMessageEntry; index:
       </div>
 
       {/* Token + Cost row */}
-      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-y-1 sm:gap-x-5 text-xs">
         <span className="text-slate-500">
           Tokens:{" "}
           <span className="text-indigo-300 font-semibold">
@@ -163,7 +163,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
       )}
 
       {loading && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-5 h-20 animate-pulse" />
           ))}
@@ -173,7 +173,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
       {data && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatCard
               label="Total Tokens"
               value={data.totalTokens.toLocaleString()}

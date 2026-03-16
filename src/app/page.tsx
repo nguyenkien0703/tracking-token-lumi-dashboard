@@ -197,7 +197,7 @@ export default function OverviewPage() {
 
       {/* Summary stats */}
       {users.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
             <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Active Users</p>
             <p className="text-2xl font-bold text-indigo-400">{users.length}</p>

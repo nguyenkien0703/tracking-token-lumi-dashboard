@@ -15,11 +15,11 @@ const navItems = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-56 bg-slate-900 border-r border-slate-700 flex flex-col z-10">
+    <aside className="h-full w-56 bg-slate-900 border-r border-slate-700 flex flex-col">
       <div className="px-4 py-5 border-b border-slate-700">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center">
@@ -42,6 +42,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                 isActive
                   ? "bg-indigo-600 text-white"
