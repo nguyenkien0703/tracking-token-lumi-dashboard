@@ -6,19 +6,12 @@ import { useSearchParams } from "next/navigation";
 import { getSessionCost, getSessionMessages } from "@/lib/api";
 import { UserCostSummary, SessionMessageEntry, SessionMessagesPagination } from "@/types";
 import StatCard from "@/components/StatCard";
-import ModelBarChart from "@/components/ModelBarChart";
 
 const PAGE_LIMIT = 20;
-const ORDER: "asc" | "desc" = "asc";
+const ORDER: "asc" | "desc" = "desc";
 
 function RoleBadge({ role }: { role: string | null }) {
-  if (!role) {
-    return (
-      <span className="inline-block border text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-700/60 text-slate-500 border-slate-600">
-        unmapped
-      </span>
-    );
-  }
+  if (!role) return null;
   const map: Record<string, string> = {
     user: "bg-blue-900/50 text-blue-300 border-blue-700",
     assistant: "bg-emerald-900/50 text-emerald-300 border-emerald-700",
@@ -32,28 +25,16 @@ function RoleBadge({ role }: { role: string | null }) {
   );
 }
 
-function MessageEntryCard({ entry }: { entry: SessionMessageEntry }) {
-  const shortId =
-    entry.messagePublicId
-      ? entry.messagePublicId
-      : `#${String(entry.messageId).length > 12 ? "unmapped" : entry.messageId}`;
-
+function MessageEntryCard({ entry, index }: { entry: SessionMessageEntry; index: number }) {
   return (
     <div className="border border-slate-700 rounded-xl bg-slate-800/60 p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-slate-300 w-6 text-right">{index}.</span>
           <RoleBadge role={entry.role} />
-          {entry.isUnmapped && (
-            <span className="text-xs bg-amber-900/30 border border-amber-700 text-amber-400 px-2 py-0.5 rounded-full">
-              unlinked
-            </span>
-          )}
-          <span className="text-xs font-mono text-slate-600" title={String(entry.messageId)}>
-            {shortId}
-          </span>
         </div>
-        <span className="text-xs text-slate-500 shrink-0">
+        <span className="text-sm font-medium text-slate-300 shrink-0">
           {new Date(entry.messageCreatedAt).toLocaleString()}
         </span>
       </div>
@@ -192,7 +173,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
       {data && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <StatCard
               label="Total Tokens"
               value={data.totalTokens.toLocaleString()}
@@ -209,49 +190,6 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
               value={data.requestCount.toLocaleString()}
               accent="amber"
             />
-            <StatCard
-              label="Models"
-              value={Object.keys(data.modelUsage ?? {}).length}
-              accent="indigo"
-            />
-          </div>
-
-          {/* Model Breakdown */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-              <h2 className="text-slate-200 font-semibold text-sm mb-4">Model Usage</h2>
-              <ModelBarChart modelUsage={data.modelUsage ?? {}} />
-            </div>
-
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-              <h2 className="text-slate-200 font-semibold text-sm mb-4">Model Detail</h2>
-              <div className="space-y-3">
-                {Object.entries(data.modelUsage ?? {}).map(([model, usage]) => (
-                  <div
-                    key={model}
-                    className="flex flex-col gap-1 border-b border-slate-700 pb-3 last:border-0 last:pb-0"
-                  >
-                    <span className="text-slate-300 text-sm font-mono" title={model}>
-                      {model}
-                    </span>
-                    <div className="flex items-center gap-4 text-xs">
-                      <span className="text-slate-400">
-                        Tokens:{" "}
-                        <span className="text-indigo-300 font-semibold">
-                          {usage.tokens.toLocaleString()}
-                        </span>
-                      </span>
-                      <span className="text-slate-400">
-                        Cost:{" "}
-                        <span className="text-emerald-400 font-semibold">
-                          ${usage.costUsd.toFixed(4)}
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </>
       )}
@@ -295,7 +233,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
         {!msgLoading && messages.length > 0 && (
           <div className="space-y-3">
             {messages.map((entry, idx) => (
-              <MessageEntryCard key={entry.messageId ?? idx} entry={entry} />
+              <MessageEntryCard key={entry.messageId ?? idx} entry={entry} index={offset + idx + 1} />
             ))}
           </div>
         )}
