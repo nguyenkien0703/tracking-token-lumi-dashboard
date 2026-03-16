@@ -1,4 +1,4 @@
-import { UserCostSummary, HistoryData, SessionMessagesResponse, MessageCostDetail } from "@/types";
+import { UserCostSummary, HistoryData, SessionMessagesResponse, MessageCostDetail, SessionMessageEntry } from "@/types";
 
 // Tất cả API calls đi qua proxy — token được quản lý hoàn toàn server-side
 const PROXY = "/api/proxy";
@@ -76,5 +76,14 @@ export async function getSessionMessages(
     throw new Error(json.error ?? `API ${res.status}: request failed`);
   }
   const json = await res.json();
-  return { data: json.data, pagination: json.pagination } as SessionMessagesResponse;
+  // API returns: { success, data: { entries: [...], total, limit, offset } }
+  const payload = json.data as { entries: SessionMessagesResponse["data"]; total: number; limit: number; offset: number };
+  const pagination: SessionMessagesResponse["pagination"] = {
+    total: payload.total,
+    limit: payload.limit,
+    offset: payload.offset,
+    hasNext: payload.offset + payload.limit < payload.total,
+    hasPrev: payload.offset > 0,
+  };
+  return { data: payload.entries, pagination };
 }

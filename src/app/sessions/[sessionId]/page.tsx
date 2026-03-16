@@ -3,223 +3,95 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { getSessionCost, getSessionMessages, getMessageCostDetail } from "@/lib/api";
-import { UserCostSummary, TurnMessage, SessionMessagesPagination, MessageCostDetail } from "@/types";
+import { getSessionCost, getSessionMessages } from "@/lib/api";
+import { UserCostSummary, SessionMessageEntry, SessionMessagesPagination } from "@/types";
 import StatCard from "@/components/StatCard";
 import ModelBarChart from "@/components/ModelBarChart";
 
 const PAGE_LIMIT = 20;
 const ORDER: "asc" | "desc" = "asc";
 
-function RoleBadge({ role }: { role: TurnMessage["role"] }) {
-  const map = {
+function RoleBadge({ role }: { role: string | null }) {
+  if (!role) {
+    return (
+      <span className="inline-block border text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-700/60 text-slate-500 border-slate-600">
+        unmapped
+      </span>
+    );
+  }
+  const map: Record<string, string> = {
     user: "bg-blue-900/50 text-blue-300 border-blue-700",
     assistant: "bg-emerald-900/50 text-emerald-300 border-emerald-700",
     system: "bg-slate-700/60 text-slate-400 border-slate-600",
   };
+  const cls = map[role] ?? "bg-slate-700/60 text-slate-400 border-slate-600";
   return (
-    <span
-      className={`inline-block border text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${map[role]}`}
-    >
+    <span className={`inline-block border text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${cls}`}>
       {role}
     </span>
   );
 }
 
-function MessageCard({
-  msg,
-  sessionId,
-}: {
-  msg: TurnMessage;
-  sessionId: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detail, setDetail] = useState<MessageCostDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
-
-  const cost = msg.costs[0];
-  const isLong = msg.content.length > 400;
-  const displayContent =
-    isLong && !expanded ? msg.content.slice(0, 400) + "…" : msg.content;
-
-  const toggleDetail = () => {
-    if (!detailOpen && !detail) {
-      setDetailLoading(true);
-      setDetailError(null);
-      getMessageCostDetail(sessionId, msg.id)
-        .then(setDetail)
-        .catch((err) =>
-          setDetailError(err instanceof Error ? err.message : "Failed to load")
-        )
-        .finally(() => setDetailLoading(false));
-    }
-    setDetailOpen((v) => !v);
-  };
+function MessageEntryCard({ entry }: { entry: SessionMessageEntry }) {
+  const shortId =
+    entry.messagePublicId
+      ? entry.messagePublicId
+      : `#${String(entry.messageId).length > 12 ? "unmapped" : entry.messageId}`;
 
   return (
     <div className="border border-slate-700 rounded-xl bg-slate-800/60 p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <RoleBadge role={msg.role} />
-          {typeof msg.metadata?.model === "string" && (
-            <span className="text-xs font-mono text-slate-400">
-              {msg.metadata.model}
+          <RoleBadge role={entry.role} />
+          {entry.isUnmapped && (
+            <span className="text-xs bg-amber-900/30 border border-amber-700 text-amber-400 px-2 py-0.5 rounded-full">
+              unlinked
             </span>
           )}
-          <span className="text-xs font-mono text-slate-600">#{msg.id}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 shrink-0">
-            {new Date(msg.createdAt).toLocaleString()}
+          <span className="text-xs font-mono text-slate-600" title={String(entry.messageId)}>
+            {shortId}
           </span>
-          <button
-            onClick={toggleDetail}
-            className="text-xs px-2 py-0.5 rounded border border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors"
-          >
-            {detailOpen ? "Hide Cost" : "Cost Detail"}
-          </button>
         </div>
+        <span className="text-xs text-slate-500 shrink-0">
+          {new Date(entry.messageCreatedAt).toLocaleString()}
+        </span>
       </div>
 
-      {/* Content */}
-      <div className="text-sm text-slate-300 whitespace-pre-wrap break-words leading-relaxed">
-        {displayContent}
-        {isLong && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="ml-2 text-indigo-400 hover:text-indigo-300 text-xs underline"
-          >
-            {expanded ? "Show less" : "Show more"}
-          </button>
+      {/* Token + Cost row */}
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
+        <span className="text-slate-500">
+          Tokens:{" "}
+          <span className="text-indigo-300 font-semibold">
+            {entry.totalTokens.toLocaleString()}
+          </span>
+          <span className="text-slate-600">
+            {" "}(in {entry.totalPromptTokens.toLocaleString()} / out {entry.totalCompletionTokens.toLocaleString()})
+          </span>
+        </span>
+        <span className="text-slate-500">
+          Cost:{" "}
+          <span className="text-emerald-400 font-semibold">
+            ${entry.totalCostUsd.toFixed(6)}
+          </span>
+          <span className="text-slate-600">
+            {" "}(in ${entry.inputCostUsd.toFixed(6)} / out ${entry.outputCostUsd.toFixed(6)})
+          </span>
+        </span>
+        {entry.requestCount > 1 && (
+          <span className="text-slate-500">
+            Requests:{" "}
+            <span className="text-amber-400 font-semibold">{entry.requestCount}</span>
+          </span>
         )}
       </div>
 
-      {/* Basic cost row */}
-      {cost && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs border-t border-slate-700 pt-2 mt-1">
-          <span className="text-slate-500">
-            Tokens:{" "}
-            <span className="text-indigo-300 font-semibold">
-              {cost.totalTokens.toLocaleString()}
-            </span>
-            <span className="text-slate-600">
-              {" "}(in {cost.promptTokens.toLocaleString()} / out{" "}
-              {cost.completionTokens.toLocaleString()}
-              {cost.cacheReadTokens > 0
-                ? ` / cache ${cost.cacheReadTokens.toLocaleString()}`
-                : ""}
-              )
-            </span>
-          </span>
-          <span className="text-slate-500">
-            Cost:{" "}
-            <span className="text-emerald-400 font-semibold">
-              ${cost.totalCostUsd.toFixed(5)}
-            </span>
-          </span>
-          {cost.langsmithRunId && (
-            <span
-              className="text-slate-600 font-mono truncate max-w-xs"
-              title={cost.langsmithRunId}
-            >
-              run: {cost.langsmithRunId}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Cost Detail Panel */}
-      {detailOpen && (
-        <div className="border-t border-slate-700 pt-3 mt-1 space-y-3">
-          {detailLoading && (
-            <div className="space-y-2">
-              {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="h-8 rounded-lg bg-slate-700/50 animate-pulse"
-                />
-              ))}
-            </div>
-          )}
-
-          {detailError && (
-            <p className="text-xs text-red-400">{detailError}</p>
-          )}
-
-          {detail && !detailLoading && (
-            <>
-              {/* Summary */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { label: "Prompt", value: detail.summary.totalPromptTokens.toLocaleString(), unit: "tok" },
-                  { label: "Completion", value: detail.summary.totalCompletionTokens.toLocaleString(), unit: "tok" },
-                  { label: "Total Tokens", value: detail.summary.totalTokens.toLocaleString(), unit: "tok" },
-                  { label: "Cost", value: `$${detail.summary.totalCostUsd.toFixed(6)}`, unit: "" },
-                ].map((s) => (
-                  <div
-                    key={s.label}
-                    className="bg-slate-900/60 rounded-lg px-3 py-2 text-center"
-                  >
-                    <p className="text-slate-500 text-xs">{s.label}</p>
-                    <p className="text-slate-200 font-semibold text-sm">
-                      {s.value}
-                      {s.unit && (
-                        <span className="text-slate-600 font-normal text-xs ml-1">
-                          {s.unit}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Entries table */}
-              {detail.entries.length > 0 && (
-                <div className="overflow-x-auto rounded-lg border border-slate-700">
-                  <table className="w-full text-xs text-slate-300">
-                    <thead className="bg-slate-900/60 text-slate-500">
-                      <tr>
-                        <th className="text-left px-3 py-2">Model</th>
-                        <th className="text-right px-3 py-2">Prompt</th>
-                        <th className="text-right px-3 py-2">Completion</th>
-                        <th className="text-right px-3 py-2">Cache</th>
-                        <th className="text-right px-3 py-2">Total</th>
-                        <th className="text-right px-3 py-2">Cost (USD)</th>
-                        <th className="text-right px-3 py-2">Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.entries.map((e, i) => (
-                        <tr
-                          key={i}
-                          className="border-t border-slate-800 hover:bg-slate-700/30"
-                        >
-                          <td className="px-3 py-2 font-mono text-slate-400 max-w-[180px] truncate" title={e.model}>
-                            {e.model}
-                          </td>
-                          <td className="px-3 py-2 text-right">{e.promptTokens.toLocaleString()}</td>
-                          <td className="px-3 py-2 text-right">{e.completionTokens.toLocaleString()}</td>
-                          <td className="px-3 py-2 text-right">{e.cacheReadTokens.toLocaleString()}</td>
-                          <td className="px-3 py-2 text-right text-indigo-300 font-semibold">
-                            {e.totalTokens.toLocaleString()}
-                          </td>
-                          <td className="px-3 py-2 text-right text-emerald-400 font-semibold">
-                            ${e.totalCostUsd.toFixed(6)}
-                          </td>
-                          <td className="px-3 py-2 text-right text-slate-500">
-                            {new Date(e.createdAt).toLocaleTimeString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
+      {/* Time range (if differs) */}
+      {entry.firstTrackedAt !== entry.lastTrackedAt && (
+        <div className="text-xs text-slate-600 border-t border-slate-700 pt-2">
+          Tracked:{" "}
+          {new Date(entry.firstTrackedAt).toLocaleTimeString()} →{" "}
+          {new Date(entry.lastTrackedAt).toLocaleTimeString()}
         </div>
       )}
     </div>
@@ -235,7 +107,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [messages, setMessages] = useState<TurnMessage[]>([]);
+  const [messages, setMessages] = useState<SessionMessageEntry[]>([]);
   const [pagination, setPagination] = useState<SessionMessagesPagination | null>(null);
   const [offset, setOffset] = useState(0);
   const [msgLoading, setMsgLoading] = useState(false);
@@ -411,7 +283,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
         {msgLoading && (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="border border-slate-700 rounded-xl h-24 animate-pulse bg-slate-800/60" />
+              <div key={i} className="border border-slate-700 rounded-xl h-20 animate-pulse bg-slate-800/60" />
             ))}
           </div>
         )}
@@ -422,8 +294,8 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
 
         {!msgLoading && messages.length > 0 && (
           <div className="space-y-3">
-            {messages.map((msg) => (
-              <MessageCard key={msg.id} msg={msg} sessionId={sessionId} />
+            {messages.map((entry, idx) => (
+              <MessageEntryCard key={entry.messageId ?? idx} entry={entry} />
             ))}
           </div>
         )}

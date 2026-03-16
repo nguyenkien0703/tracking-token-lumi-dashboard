@@ -65,6 +65,23 @@ export interface TurnMessage {
   costs: MessageCost[];
 }
 
+export interface SessionMessageEntry {
+  messageId: number;
+  isUnmapped: boolean;
+  messagePublicId: string | null;
+  role: string | null;
+  messageCreatedAt: string;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  inputCostUsd: number;
+  outputCostUsd: number;
+  totalCostUsd: number;
+  requestCount: number;
+  firstTrackedAt: string;
+  lastTrackedAt: string;
+}
+
 export interface SessionMessagesPagination {
   limit: number;
   offset: number;
@@ -74,7 +91,7 @@ export interface SessionMessagesPagination {
 }
 
 export interface SessionMessagesResponse {
-  data: TurnMessage[];
+  data: SessionMessageEntry[];
   pagination: SessionMessagesPagination;
 }
 
