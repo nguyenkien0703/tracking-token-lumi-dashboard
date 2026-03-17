@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { getUserCost, getHistory } from "@/lib/api";
-import { UserCostSummary, HistoryData, HistoryEntry, DateRange } from "@/types";
+import { getUserCost, getUserSessions } from "@/lib/api";
+import { UserCostSummary, UserSessionsData, DateRange } from "@/types";
 import StatCard from "@/components/StatCard";
 import DateRangePicker from "@/components/DateRangePicker";
 import TokenLineChart from "@/components/TokenLineChart";
@@ -16,12 +16,11 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
 
   const [userInfo, setUserInfo] = useState<{ firstName: string; lastName: string; email: string; avatarUrl: string | null } | null>(null);
   const [summary, setSummary] = useState<UserCostSummary | null>(null);
-  const [historyData, setHistoryData] = useState<HistoryData | null>(null);
-  const [chartEntries, setChartEntries] = useState<HistoryEntry[]>([]);
+  const [sessionsData, setSessionsData] = useState<UserSessionsData | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [offset, setOffset] = useState(0);
   const [loadingSummary, setLoadingSummary] = useState(true);
-  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,46 +45,27 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
     }
   }, [userId, dateRange]);
 
-  const fetchHistory = useCallback(async () => {
-    setLoadingHistory(true);
+  const fetchSessions = useCallback(async () => {
+    setLoadingSessions(true);
     try {
-      // Fetch paginated data for table
-      const data = await getHistory({
-        userId,
-        from: dateRange.from || undefined,
-        to: dateRange.to || undefined,
-        limit: LIMIT,
-        offset,
-      });
-      setHistoryData(data);
-
-      // Fetch all entries (up to 500) for chart — only when date/user changes (not pagination)
-      if (offset === 0) {
-        const allData = await getHistory({
-          userId,
-          from: dateRange.from || undefined,
-          to: dateRange.to || undefined,
-          limit: 500,
-          offset: 0,
-        });
-        setChartEntries(allData.entries);
-      }
+      const data = await getUserSessions(userId, offset, LIMIT);
+      setSessionsData(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load history");
+      setError(err instanceof Error ? err.message : "Failed to load sessions");
     } finally {
-      setLoadingHistory(false);
+      setLoadingSessions(false);
     }
-  }, [userId, dateRange, offset]);
+  }, [userId, offset]);
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
-  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+  useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
   const handleDateChange = (range: DateRange) => {
     setOffset(0);
     setDateRange(range);
   };
 
-  const isLoading = loadingSummary || loadingHistory;
+  const isLoading = loadingSummary || loadingSessions;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -128,7 +108,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard
           label="Total Tokens"
           value={summary ? summary.totalTokens.toLocaleString() : "—"}
@@ -155,53 +135,46 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
           value={summary ? summary.requestCount.toLocaleString() : "—"}
           accent="amber"
         />
-        <StatCard
-          label="Models Used"
-          value={summary ? Object.keys(summary.modelUsage ?? {}).length : "—"}
-          accent="indigo"
-        />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 gap-4">
-        {/* Token Usage Over Time */}
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-          <h2 className="text-slate-200 font-semibold text-sm mb-4">Token Usage Over Time</h2>
-          {loadingHistory ? (
-            <div className="h-48 flex items-center justify-center text-slate-500 text-sm animate-pulse">
-              Loading chart...
-            </div>
-          ) : chartEntries.length > 0 ? (
-            <TokenLineChart entries={chartEntries} />
-          ) : (
-            <div className="h-48 flex items-center justify-center text-slate-500 text-sm">
-              No usage data
-            </div>
-          )}
-        </div>
+      {/* Chart */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+        <h2 className="text-slate-200 font-semibold text-sm mb-4">Token Usage Over Time</h2>
+        {loadingSessions ? (
+          <div className="h-48 flex items-center justify-center text-slate-500 text-sm animate-pulse">
+            Loading chart...
+          </div>
+        ) : sessionsData && sessionsData.entries.length > 0 ? (
+          <TokenLineChart entries={sessionsData.entries} />
+        ) : (
+          <div className="h-48 flex items-center justify-center text-slate-500 text-sm">
+            No usage data
+          </div>
+        )}
       </div>
 
-      {/* Session History Table */}
+      {/* Session Table */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-slate-200 font-semibold">
-            Session History
-            {historyData && (
+            Chat Sessions
+            {sessionsData && (
               <span className="ml-2 text-slate-500 font-normal text-sm">
-                ({historyData.total.toLocaleString()} records)
+                ({sessionsData.total.toLocaleString()} sessions)
               </span>
             )}
           </h2>
-          {loadingHistory && (
+          {loadingSessions && (
             <span className="text-slate-400 text-xs animate-pulse">Loading...</span>
           )}
         </div>
-        {historyData ? (
+        {sessionsData ? (
           <SessionTable
-            entries={historyData.entries}
-            total={historyData.total}
+            entries={sessionsData.entries}
+            total={sessionsData.total}
             limit={LIMIT}
             offset={offset}
+            userId={userId}
             onPageChange={setOffset}
           />
         ) : (

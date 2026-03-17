@@ -1,4 +1,4 @@
-import { UserCostSummary, HistoryData, SessionMessagesResponse, MessageCostDetail, SessionMessageEntry } from "@/types";
+import { UserCostSummary, HistoryData, SessionMessagesResponse, MessageCostDetail, SessionMessageEntry, UserSessionsData } from "@/types";
 
 // Tất cả API calls đi qua proxy — token được quản lý hoàn toàn server-side
 const PROXY = "/api/proxy";
@@ -41,6 +41,15 @@ export async function getHistory(params: {
   if (params.offset !== undefined) sp.set("offset", String(params.offset));
   if (params.model) sp.set("model", params.model);
   return apiFetch(`api/v1/normal-mode/costs/history?${sp.toString()}`);
+}
+
+export async function getUserSessions(
+  userId: number,
+  offset = 0,
+  limit = 50
+): Promise<UserSessionsData> {
+  const sp = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return apiFetch(`api/v1/normal-mode/costs/user/${userId}/sessions?${sp.toString()}`);
 }
 
 export async function getSessionCost(sessionId: string): Promise<UserCostSummary> {

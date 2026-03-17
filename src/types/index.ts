@@ -41,6 +41,29 @@ export interface DateRange {
   to: string;
 }
 
+export interface UserSessionEntry {
+  sessionId: string;
+  chatSessionDbId: number;
+  title: string | null;
+  status: string;
+  sessionCreatedAt: string;
+  sessionUpdatedAt: string;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
+  firstTrackedAt: string;
+  lastTrackedAt: string;
+}
+
+export interface UserSessionsData {
+  entries: UserSessionEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface MessageCost {
   model: string;
   promptTokens: number;

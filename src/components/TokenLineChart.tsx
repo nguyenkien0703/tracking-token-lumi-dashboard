@@ -10,24 +10,23 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { HistoryEntry } from "@/types";
+import { UserSessionEntry } from "@/types";
 import { format, parseISO } from "date-fns";
 
 interface Props {
-  entries: HistoryEntry[];
+  entries: UserSessionEntry[];
 }
 
 export default function TokenLineChart({ entries }: Props) {
-  // key = "YYYY-MM-DD" for sorting, label = "MM/dd" for display
   const byDay: Record<string, { key: string; date: string; tokens: number; cost: number; requests: number }> = {};
 
   for (const e of entries) {
-    const key = format(parseISO(e.createdAt), "yyyy-MM-dd");
-    const label = format(parseISO(e.createdAt), "MM/dd");
+    const key = format(parseISO(e.sessionCreatedAt), "yyyy-MM-dd");
+    const label = format(parseISO(e.sessionCreatedAt), "MM/dd");
     if (!byDay[key]) byDay[key] = { key, date: label, tokens: 0, cost: 0, requests: 0 };
     byDay[key].tokens += e.totalTokens;
     byDay[key].cost = parseFloat((byDay[key].cost + e.totalCostUsd).toFixed(4));
-    byDay[key].requests += 1;
+    byDay[key].requests += e.requestCount;
   }
 
   const data = Object.values(byDay).sort((a, b) => a.key.localeCompare(b.key));
