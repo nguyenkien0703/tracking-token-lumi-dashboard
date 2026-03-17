@@ -79,7 +79,7 @@ export default function SessionTable({
                   ${e.totalCostUsd.toFixed(4)}
                 </td>
                 <td className="px-3 py-2.5 text-slate-400 text-xs whitespace-nowrap">
-                  {format(parseISO(e.sessionCreatedAt), "MM/dd HH:mm")}
+                  {e.sessionCreatedAt ? format(parseISO(e.sessionCreatedAt), "MM/dd HH:mm") : "—"}
                 </td>
               </tr>
             ))}

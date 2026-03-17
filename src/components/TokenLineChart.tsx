@@ -21,6 +21,7 @@ export default function TokenLineChart({ entries }: Props) {
   const byDay: Record<string, { key: string; date: string; tokens: number; cost: number; requests: number }> = {};
 
   for (const e of entries) {
+    if (!e.sessionCreatedAt) continue;
     const key = format(parseISO(e.sessionCreatedAt), "yyyy-MM-dd");
     const label = format(parseISO(e.sessionCreatedAt), "MM/dd");
     if (!byDay[key]) byDay[key] = { key, date: label, tokens: 0, cost: 0, requests: 0 };
