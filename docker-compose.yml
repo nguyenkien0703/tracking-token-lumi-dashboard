@@ -30,6 +30,7 @@ services:
       - API_BASE_URL=${API_BASE_URL}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_PANEL_PASSWORD=${ADMIN_PANEL_PASSWORD}
       - DATABASE_URL=postgresql://lumi:lumipass@postgres:5432/lumi
 
 volumes:

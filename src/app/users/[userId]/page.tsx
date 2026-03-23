@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { getUserCost, getHistory } from "@/lib/api";
-import { UserCostSummary, HistoryData, HistoryEntry, DateRange } from "@/types";
+import { getUserCost, getUserSessions } from "@/lib/api";
+import { UserCostSummary, UserSessionsData, DateRange } from "@/types";
 import StatCard from "@/components/StatCard";
 import DateRangePicker from "@/components/DateRangePicker";
 import TokenLineChart from "@/components/TokenLineChart";
@@ -16,12 +16,11 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
 
   const [userInfo, setUserInfo] = useState<{ firstName: string; lastName: string; email: string; avatarUrl: string | null } | null>(null);
   const [summary, setSummary] = useState<UserCostSummary | null>(null);
-  const [historyData, setHistoryData] = useState<HistoryData | null>(null);
-  const [chartEntries, setChartEntries] = useState<HistoryEntry[]>([]);
+  const [sessionsData, setSessionsData] = useState<UserSessionsData | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [offset, setOffset] = useState(0);
   const [loadingSummary, setLoadingSummary] = useState(true);
-  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,46 +45,27 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
     }
   }, [userId, dateRange]);
 
-  const fetchHistory = useCallback(async () => {
-    setLoadingHistory(true);
+  const fetchSessions = useCallback(async () => {
+    setLoadingSessions(true);
     try {
-      // Fetch paginated data for table
-      const data = await getHistory({
-        userId,
-        from: dateRange.from || undefined,
-        to: dateRange.to || undefined,
-        limit: LIMIT,
-        offset,
-      });
-      setHistoryData(data);
-
-      // Fetch all entries (up to 500) for chart — only when date/user changes (not pagination)
-      if (offset === 0) {
-        const allData = await getHistory({
-          userId,
-          from: dateRange.from || undefined,
-          to: dateRange.to || undefined,
-          limit: 500,
-          offset: 0,
-        });
-        setChartEntries(allData.entries);
-      }
+      const data = await getUserSessions(userId, offset, LIMIT);
+      setSessionsData(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load history");
+      setError(err instanceof Error ? err.message : "Failed to load sessions");
     } finally {
-      setLoadingHistory(false);
+      setLoadingSessions(false);
     }
-  }, [userId, dateRange, offset]);
+  }, [userId, offset]);
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
-  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+  useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
   const handleDateChange = (range: DateRange) => {
     setOffset(0);
     setDateRange(range);
   };
 
-  const isLoading = loadingSummary || loadingHistory;
+  const isLoading = loadingSummary || loadingSessions;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -95,22 +75,24 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
           <div className="flex items-center gap-2 text-sm text-slate-400 mb-2">
             <Link href="/" className="hover:text-slate-200 transition-colors">Overview</Link>
             <span>/</span>
-            <span className="text-slate-200">User #{userId}</span>
+            <span className="text-slate-200">
+              {userInfo ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || userInfo.email || "User Detail" : "User Detail"}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {userInfo?.avatarUrl ? (
               <img src={userInfo.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-300 font-bold">
-                {userInfo ? (userInfo.firstName?.[0] ?? userInfo.lastName?.[0] ?? "#") : "#"}
+                {userInfo ? (userInfo.firstName?.[0] ?? userInfo.lastName?.[0] ?? userInfo.email?.[0] ?? "U") : "U"}
               </div>
             )}
             <div>
               <h1 className="text-2xl font-bold text-slate-100">
-                {userInfo ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || `User #${userId}` : `User #${userId}`}
+                {userInfo ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || userInfo.email || "User Detail" : "User Detail"}
               </h1>
-              {userInfo && (
-                <p className="text-slate-400 text-sm">{userInfo.email} · <span className="text-slate-500">#{userId}</span></p>
+              {userInfo?.email && (
+                <p className="text-slate-400 text-sm">{userInfo.email}</p>
               )}
             </div>
           </div>
@@ -126,7 +108,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard
           label="Total Tokens"
           value={summary ? summary.totalTokens.toLocaleString() : "—"}
@@ -153,49 +135,46 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
           value={summary ? summary.requestCount.toLocaleString() : "—"}
           accent="amber"
         />
-        <StatCard
-          label="Models Used"
-          value={summary ? Object.keys(summary.modelUsage ?? {}).length : "—"}
-          accent="indigo"
-        />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 gap-4">
-        {/* Token Usage Over Time */}
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-          <h2 className="text-slate-200 font-semibold text-sm mb-4">Token Usage Over Time</h2>
-          {chartEntries.length > 0 ? (
-            <TokenLineChart entries={chartEntries} />
-          ) : (
-            <div className="h-48 flex items-center justify-center text-slate-500 text-sm animate-pulse">
-              Loading chart...
-            </div>
-          )}
-        </div>
+      {/* Chart */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+        <h2 className="text-slate-200 font-semibold text-sm mb-4">Token Usage Over Time</h2>
+        {loadingSessions ? (
+          <div className="h-48 flex items-center justify-center text-slate-500 text-sm animate-pulse">
+            Loading chart...
+          </div>
+        ) : sessionsData && sessionsData.entries.length > 0 ? (
+          <TokenLineChart entries={sessionsData.entries} />
+        ) : (
+          <div className="h-48 flex items-center justify-center text-slate-500 text-sm">
+            No usage data
+          </div>
+        )}
       </div>
 
-      {/* Session History Table */}
+      {/* Session Table */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-slate-200 font-semibold">
-            Session History
-            {historyData && (
+            Chat Sessions
+            {sessionsData && (
               <span className="ml-2 text-slate-500 font-normal text-sm">
-                ({historyData.total.toLocaleString()} records)
+                ({sessionsData.total.toLocaleString()} sessions)
               </span>
             )}
           </h2>
-          {loadingHistory && (
+          {loadingSessions && (
             <span className="text-slate-400 text-xs animate-pulse">Loading...</span>
           )}
         </div>
-        {historyData ? (
+        {sessionsData ? (
           <SessionTable
-            entries={historyData.entries}
-            total={historyData.total}
+            entries={sessionsData.entries}
+            total={sessionsData.total}
             limit={LIMIT}
             offset={offset}
+            userId={userId}
             onPageChange={setOffset}
           />
         ) : (
