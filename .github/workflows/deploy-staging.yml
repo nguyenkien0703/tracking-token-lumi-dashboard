@@ -50,8 +50,8 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            mkdir -p /root/monitor/lumi-dashboard/staging
-            cd /root/monitor/lumi-dashboard/staging
+            mkdir -p /root/monitor/tracking-token-lumi-dashboard-staging
+            cd /root/monitor/tracking-token-lumi-dashboard-staging
             if [ ! -d .git ]; then
               git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/nguyenkien0703/tracking-token-lumi-dashboard.git" .
               git checkout staging
