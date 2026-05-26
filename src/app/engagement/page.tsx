@@ -120,6 +120,7 @@ export default function EngagementPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchAll = useCallback(async () => {
@@ -128,16 +129,25 @@ export default function EngagementPage() {
     abortRef.current = ctrl;
     setLoading(true);
     setUsers([]);
+    setError(null);
     try {
-      const [s, u] = await Promise.all([
-        fetch(`/api/savameta/engagement/summary?segment=${segment}`, { signal: ctrl.signal }).then((r) => r.json()),
-        fetch(`/api/savameta/engagement/by-user?segment=${segment}`, { signal: ctrl.signal }).then((r) => r.json()),
-      ]);
+      const summaryP = fetch(`/api/savameta/engagement/summary?segment=${segment}`, { signal: ctrl.signal })
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`summary endpoint returned ${r.status}`);
+          return r.json();
+        });
+      const usersP = fetch(`/api/savameta/engagement/by-user?segment=${segment}`, { signal: ctrl.signal })
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`by-user endpoint returned ${r.status}`);
+          return r.json();
+        });
+      const [s, u] = await Promise.all([summaryP, usersP]);
       if (ctrl.signal.aborted) return;
       setSummary(s.data);
       setUsers(u.data ?? []);
     } catch (e) {
       if ((e as { name?: string })?.name === "AbortError") return;
+      setError(e instanceof Error ? e.message : "Failed to load engagement data");
     } finally {
       if (!ctrl.signal.aborted) setLoading(false);
     }
@@ -172,6 +182,13 @@ export default function EngagementPage() {
 
       {/* Segment tabs */}
       <SegmentTabs value={segment} onChange={setSegment} />
+
+      {/* Error banner */}
+      {error && (
+        <div className="bg-danger/10 border border-danger/40 text-danger text-sm px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -250,6 +267,7 @@ export default function EngagementPage() {
             <p className="text-xs text-text-muted mt-0.5">Sorted by cost descending.</p>
           </div>
           <button
+            type="button"
             onClick={() =>
               downloadCsv(
                 `engagement-${segment}-by-user-${new Date().toISOString().slice(0, 10)}.csv`,
@@ -264,7 +282,7 @@ export default function EngagementPage() {
 
         {/* Loading banner */}
         {loading && (
-          <div className="flex items-center gap-2 text-text-secondary text-xs bg-surface border-b border-border-default px-3 py-2">
+          <div role="status" aria-live="polite" className="flex items-center gap-2 text-text-secondary text-xs bg-surface border-b border-border-default px-3 py-2">
             <span className="inline-block w-3 h-3 border-2 border-text-secondary border-t-transparent rounded-full animate-spin" />
             Loading…
           </div>
