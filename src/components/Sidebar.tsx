@@ -50,12 +50,6 @@ const iconBolt = (
   </svg>
 );
 
-const iconList = (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-  </svg>
-);
-
 const iconTag = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5a2 2 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
@@ -74,7 +68,6 @@ const sections: NavSection[] = [
     title: "COST TRACKING",
     items: [
       { href: "/", label: "Overview", icon: iconHome },
-      { href: "/sessions", label: "Sessions", icon: iconList },
       { href: "/users", label: "Users", icon: iconUsers },
     ],
   },

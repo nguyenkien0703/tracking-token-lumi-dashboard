@@ -138,9 +138,18 @@ async function doSync(): Promise<void> {
  * Trigger sync if data is stale.
  * - blocking=true: await completion (used when DB is empty)
  * - blocking=false: fire-and-forget
+ *
+ * Sync errors never bubble out when blocking=false — pages must render stale
+ * data instead of returning 500. When blocking=true (DB empty) errors do
+ * surface, since there is nothing to render.
  */
 export async function syncIfStale(blocking = false): Promise<void> {
-  if (!(await isStale())) return;
+  try {
+    if (!(await isStale())) return;
+  } catch (err) {
+    console.warn("[sync] isStale check failed, skipping:", err);
+    return;
+  }
 
   if (!syncPromise) {
     syncPromise = doSync().finally(() => {
@@ -148,7 +157,15 @@ export async function syncIfStale(blocking = false): Promise<void> {
     });
   }
 
-  if (blocking) await syncPromise;
+  if (blocking) {
+    await syncPromise;
+    return;
+  }
+
+  // fire-and-forget: swallow errors so callers (with cached DB data) never 500
+  syncPromise.catch((err) => {
+    console.warn("[sync] background sync failed:", err);
+  });
 }
 
 /** Force sync regardless of staleness (used by manual refresh) */
