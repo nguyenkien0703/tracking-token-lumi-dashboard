@@ -168,7 +168,10 @@ export default function OverviewPage() {
       const topUsersP = fetch(`/api/admin/top-users?${sp}`, { signal: ctrl.signal }).then((r) => r.json());
       const adoptionP =
         segment === "savameta"
-          ? fetch(`/api/savameta/adoption/summary`, { signal: ctrl.signal }).then((r) => r.json())
+          ? fetch(`/api/savameta/adoption/summary`, { signal: ctrl.signal }).then((r) => {
+              if (!r.ok) throw new Error(`adoption endpoint returned ${r.status}`);
+              return r.json();
+            })
           : Promise.resolve(null);
 
       const [topJson, adoptionJson] = await Promise.all([topUsersP, adoptionP]);
@@ -236,6 +239,7 @@ export default function OverviewPage() {
         <div className="flex items-center gap-2">
           <PeriodChip value={period} onChange={setPeriod} />
           <button
+            type="button"
             onClick={() => { loadData(); setCountdown(REFRESH_INTERVAL); }}
             disabled={loading}
             aria-busy={loading}

@@ -351,10 +351,10 @@ export default function LifecyclePage() {
         </section>
 
         {/* Users table */}
-        <section className="lg:col-span-2 bg-surface border border-border-default rounded-lg">
+        <section className="lg:col-span-2 bg-surface border border-border-default rounded-lg" role="region" aria-labelledby="lifecycle-bucket-label">
           <div className="p-4 border-b border-border-default flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-text-primary">
+              <h2 id="lifecycle-bucket-label" className="text-sm font-semibold text-text-primary">
                 {BUCKET_META[selectedBucket].label} ({users.length})
               </h2>
               <p className="text-xs text-text-muted mt-0.5">
