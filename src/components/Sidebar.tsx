@@ -11,6 +11,9 @@ import {
   Zap,
   Tag,
   Settings,
+  AlertCircle,
+  UsersRound,
+  RefreshCw,
 } from "lucide-react";
 
 type NavItem = {
@@ -26,28 +29,23 @@ type NavSection = {
 
 const sections: NavSection[] = [
   {
-    title: "COST TRACKING",
+    title: "DASHBOARD",
     items: [
       { href: "/", label: "Overview", Icon: Home },
       { href: "/users", label: "Users", Icon: Users },
-    ],
-  },
-  {
-    title: "SAVAMETA ADOPTION",
-    items: [
+      { href: "/engagement", label: "Engagement", Icon: Zap },
+      { href: "/activity", label: "Activity", Icon: Activity },
+      { href: "/lifecycle", label: "Lifecycle", Icon: RotateCcw },
+      { href: "/triggers", label: "Triggers", Icon: AlertCircle },
       { href: "/savameta/adoption", label: "Adoption", Icon: BarChart3 },
-      { href: "/savameta/engagement", label: "Engagement & Quality", Icon: Zap },
-      { href: "/savameta/activity", label: "Activity Trends", Icon: Activity },
-      { href: "/savameta/lifecycle", label: "Lifecycle", Icon: RotateCcw },
-      { href: "/savameta/triggers", label: "Triggers", Icon: Zap },
     ],
   },
   {
     title: "SETTINGS",
     items: [
-      { href: "/settings/roster", label: "Roster", Icon: Users },
+      { href: "/settings/roster", label: "Roster", Icon: UsersRound },
       { href: "/settings/releases", label: "Releases", Icon: Tag },
-      { href: "/settings", label: "Sync Status", Icon: Settings },
+      { href: "/settings", label: "Sync Status", Icon: RefreshCw },
       { href: "/admin/settings", label: "Admin", Icon: Settings },
     ],
   },
