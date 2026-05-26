@@ -11,7 +11,20 @@ export function getPool(): Pool {
   return _pool;
 }
 
-export async function initSchema(): Promise<void> {
+// Singleton — concurrent first-time callers share one promise so the
+// DDL (ALTER TABLE, CREATE INDEX) doesn't race on AccessExclusiveLock.
+let _initPromise: Promise<void> | null = null;
+
+export function initSchema(): Promise<void> {
+  if (_initPromise) return _initPromise;
+  _initPromise = runMigrations().catch((err) => {
+    _initPromise = null; // allow retry on next call
+    throw err;
+  });
+  return _initPromise;
+}
+
+async function runMigrations(): Promise<void> {
   const pool = getPool();
   await pool.query(`
     CREATE TABLE IF NOT EXISTS history_entries (
