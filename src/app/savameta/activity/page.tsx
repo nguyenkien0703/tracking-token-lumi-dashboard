@@ -13,6 +13,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import StatCard from "@/components/savameta/StatCard";
+import SegmentTabs, { type Segment } from "@/components/savameta/SegmentTabs";
 
 type Day = {
   day: string;
@@ -42,6 +43,7 @@ function fmtDay(s: string): string {
 }
 
 export default function ActivityPage() {
+  const [segment, setSegment] = useState<Segment>("savameta");
   const [days, setDays] = useState(30);
   const [data, setData] = useState<Day[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,12 +51,12 @@ export default function ActivityPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/savameta/activity/daily?days=${days}`).then((r) => r.json());
+      const res = await fetch(`/api/savameta/activity/daily?days=${days}&segment=${segment}`).then((r) => r.json());
       setData(res.data ?? []);
     } finally {
       setLoading(false);
     }
-  }, [days]);
+  }, [days, segment]);
 
   useEffect(() => {
     fetchData();
@@ -79,7 +81,7 @@ export default function ActivityPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-100">Activity Trends</h1>
           <p className="text-sm text-slate-400 mt-1">
-            Daily active users, turns, and new joiners (Savameta only).
+            Daily active users, turns, and new joiners.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -106,6 +108,8 @@ export default function ActivityPage() {
           </button>
         </div>
       </div>
+
+      <SegmentTabs value={segment} onChange={setSegment} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Peak DAU" value={totals.peakDau} hint={`in last ${days}d`} tone="success" />

@@ -1,14 +1,20 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { initSchema } from "@/lib/db";
 import { syncIfStale, hasData } from "@/lib/sync";
-import { getEngagementSummary } from "@/lib/savameta-queries";
+import { getEngagementSummary, isSegment } from "@/lib/savameta-queries";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   await initSchema();
   const dbEmpty = !(await hasData());
   await syncIfStale(dbEmpty);
-  const data = await getEngagementSummary();
+
+  const segmentParam = req.nextUrl.searchParams.get("segment") ?? "savameta";
+  if (!isSegment(segmentParam)) {
+    return NextResponse.json({ error: `Invalid segment: ${segmentParam}` }, { status: 400 });
+  }
+
+  const data = await getEngagementSummary(segmentParam);
   return NextResponse.json({ data });
 }

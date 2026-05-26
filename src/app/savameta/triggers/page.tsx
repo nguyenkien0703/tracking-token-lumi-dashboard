@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import StatCard from "@/components/savameta/StatCard";
+import SegmentTabs, { type Segment } from "@/components/savameta/SegmentTabs";
 
 type Tab = "returning" | "first-value" | "first-resolution";
 
@@ -54,6 +55,7 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 }
 
 export default function TriggersPage() {
+  const [segment, setSegment] = useState<Segment>("savameta");
   const [activeTab, setActiveTab] = useState<Tab>("returning");
   const [windowDays, setWindowDays] = useState(1);
   const [returning, setReturning] = useState<ReturningUser[]>([]);
@@ -63,22 +65,22 @@ export default function TriggersPage() {
   const fetchReturning = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/savameta/triggers/returning?window=${windowDays}`).then((r) => r.json());
+      const res = await fetch(`/api/savameta/triggers/returning?window=${windowDays}&segment=${segment}`).then((r) => r.json());
       setReturning(res.data ?? []);
     } finally {
       setLoading(false);
     }
-  }, [windowDays]);
+  }, [windowDays, segment]);
 
   const fetchFirstValue = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/savameta/triggers/first-value").then((r) => r.json());
+      const res = await fetch(`/api/savameta/triggers/first-value?segment=${segment}`).then((r) => r.json());
       setFirstValue(res.data ?? []);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [segment]);
 
   useEffect(() => {
     if (activeTab === "returning") fetchReturning();
@@ -93,6 +95,8 @@ export default function TriggersPage() {
           Detect events for BA follow-up. Export CSV để gửi outreach.
         </p>
       </div>
+
+      <SegmentTabs value={segment} onChange={setSegment} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <button onClick={() => setActiveTab("returning")} className="text-left">
@@ -177,8 +181,8 @@ export default function TriggersPage() {
                 onClick={() => {
                   const rows = activeTab === "returning" ? returning : firstValue;
                   const name = activeTab === "returning"
-                    ? `returning-users-${windowDays}d-${new Date().toISOString().slice(0, 10)}.csv`
-                    : `first-value-users-${new Date().toISOString().slice(0, 10)}.csv`;
+                    ? `returning-${segment}-${windowDays}d-${new Date().toISOString().slice(0, 10)}.csv`
+                    : `first-value-${segment}-${new Date().toISOString().slice(0, 10)}.csv`;
                   downloadCsv(name, rows as unknown as Record<string, unknown>[]);
                 }}
                 className="text-xs text-indigo-400 hover:text-indigo-300"

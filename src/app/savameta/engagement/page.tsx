@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import StatCard from "@/components/savameta/StatCard";
+import SegmentTabs, { type Segment } from "@/components/savameta/SegmentTabs";
 
 type Summary = {
   conversations: number;
@@ -57,6 +58,7 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 }
 
 export default function EngagementPage() {
+  const [segment, setSegment] = useState<Segment>("savameta");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,15 +67,15 @@ export default function EngagementPage() {
     setLoading(true);
     try {
       const [s, u] = await Promise.all([
-        fetch("/api/savameta/engagement/summary").then((r) => r.json()),
-        fetch("/api/savameta/engagement/by-user").then((r) => r.json()),
+        fetch(`/api/savameta/engagement/summary?segment=${segment}`).then((r) => r.json()),
+        fetch(`/api/savameta/engagement/by-user?segment=${segment}`).then((r) => r.json()),
       ]);
       setSummary(s.data);
       setUsers(u.data ?? []);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [segment]);
 
   useEffect(() => {
     fetchAll();
@@ -85,7 +87,7 @@ export default function EngagementPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-100">Engagement</h1>
           <p className="text-sm text-slate-400 mt-1">
-            Conversations, turns, token usage, cost per active user (Savameta only).
+            Conversations, turns, token usage, cost per daily-active user.
           </p>
         </div>
         <button
@@ -95,6 +97,8 @@ export default function EngagementPage() {
           {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
+
+      <SegmentTabs value={segment} onChange={setSegment} />
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard
@@ -174,7 +178,7 @@ export default function EngagementPage() {
           <button
             onClick={() =>
               downloadCsv(
-                `engagement-by-user-${new Date().toISOString().slice(0, 10)}.csv`,
+                `engagement-${segment}-by-user-${new Date().toISOString().slice(0, 10)}.csv`,
                 users as unknown as Record<string, unknown>[],
               )
             }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import StatCard from "@/components/savameta/StatCard";
+import SegmentTabs, { type Segment } from "@/components/savameta/SegmentTabs";
 
 type Bucket = "active" | "at_risk" | "dormant" | "never_joined";
 
@@ -45,6 +46,7 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 }
 
 export default function LifecyclePage() {
+  const [segment, setSegment] = useState<Segment>("savameta");
   const [counts, setCounts] = useState<Counts | null>(null);
   const [selectedBucket, setSelectedBucket] = useState<Bucket>("active");
   const [users, setUsers] = useState<LifecycleUser[]>([]);
@@ -54,22 +56,22 @@ export default function LifecyclePage() {
   const fetchCounts = useCallback(async () => {
     setLoadingCounts(true);
     try {
-      const res = await fetch("/api/savameta/lifecycle/buckets").then((r) => r.json());
+      const res = await fetch(`/api/savameta/lifecycle/buckets?segment=${segment}`).then((r) => r.json());
       setCounts(res.data);
     } finally {
       setLoadingCounts(false);
     }
-  }, []);
+  }, [segment]);
 
   const fetchBucket = useCallback(async (bucket: Bucket) => {
     setLoadingUsers(true);
     try {
-      const res = await fetch(`/api/savameta/lifecycle/buckets?bucket=${bucket}`).then((r) => r.json());
+      const res = await fetch(`/api/savameta/lifecycle/buckets?segment=${segment}&bucket=${bucket}`).then((r) => r.json());
       setUsers(res.data ?? []);
     } finally {
       setLoadingUsers(false);
     }
-  }, []);
+  }, [segment]);
 
   useEffect(() => {
     fetchCounts();
@@ -112,6 +114,8 @@ export default function LifecyclePage() {
           {loadingCounts ? "Refreshing..." : "Refresh"}
         </button>
       </div>
+
+      <SegmentTabs value={segment} onChange={setSegment} />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -208,7 +212,7 @@ export default function LifecyclePage() {
             <button
               onClick={() =>
                 downloadCsv(
-                  `lifecycle-${selectedBucket}-${new Date().toISOString().slice(0, 10)}.csv`,
+                  `lifecycle-${segment}-${selectedBucket}-${new Date().toISOString().slice(0, 10)}.csv`,
                   users as unknown as Record<string, unknown>[],
                 )
               }
