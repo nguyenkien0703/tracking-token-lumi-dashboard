@@ -204,3 +204,190 @@ export async function listUsersInBucket(bucket: LifecycleBucket): Promise<Lifecy
 }
 
 export { SAVAMETA_EMAIL_FILTER };
+
+// ============================================================================
+// ENGAGEMENT
+// ============================================================================
+
+export type EngagementSummary = {
+  conversations: number;
+  totalTurns: number;
+  medianTurnsPerConvo: number;
+  totalCostUsd: number;
+  active7d: number;
+  costPerActiveUser7d: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  totalCacheReadTokens: number;
+  cacheHitRate: number;
+};
+
+export async function getEngagementSummary(): Promise<EngagementSummary> {
+  const pool = getPool();
+
+  // Aggregate over Savameta users only (join through roster → users → history)
+  const { rows } = await pool.query<{
+    conversations: string;
+    total_turns: string;
+    total_cost: string;
+    total_prompt: string;
+    total_completion: string;
+    total_tokens: string;
+    total_cache: string;
+  }>(`
+    SELECT
+      COUNT(DISTINCT h."sessionId") FILTER (WHERE h."sessionId" IS NOT NULL)::int AS conversations,
+      COUNT(*)::int AS total_turns,
+      COALESCE(SUM(h."totalCostUsd"), 0)::float8 AS total_cost,
+      COALESCE(SUM(h."promptTokens"), 0)::bigint AS total_prompt,
+      COALESCE(SUM(h."completionTokens"), 0)::bigint AS total_completion,
+      COALESCE(SUM(h."totalTokens"), 0)::bigint AS total_tokens,
+      COALESCE(SUM(h.cache_read_tokens), 0)::bigint AS total_cache
+    FROM history_entries h
+    INNER JOIN users u ON u."userId" = h."userId"
+    INNER JOIN employee_roster r ON LOWER(r.email) = LOWER(u.email)
+    WHERE u.email NOT LIKE '%@anon.lumilink'
+  `);
+
+  const r = rows[0];
+
+  const medianRes = await pool.query<{ median: string }>(`
+    SELECT COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY turns), 0)::float8 AS median
+    FROM (
+      SELECT COUNT(*)::int AS turns
+      FROM history_entries h
+      INNER JOIN users u ON u."userId" = h."userId"
+      INNER JOIN employee_roster er ON LOWER(er.email) = LOWER(u.email)
+      WHERE h."sessionId" IS NOT NULL AND u.email NOT LIKE '%@anon.lumilink'
+      GROUP BY h."sessionId"
+    ) s
+  `);
+
+  const active7dRes = await pool.query<{ active7d: string }>(`
+    SELECT COUNT(DISTINCT u."userId")::int AS active7d
+    FROM users u
+    INNER JOIN employee_roster r ON LOWER(r.email) = LOWER(u.email)
+    WHERE u.last_active_at >= NOW() - INTERVAL '7 days'
+      AND u.email NOT LIKE '%@anon.lumilink'
+  `);
+
+  const totalCost = Number(r?.total_cost ?? 0);
+  const active7d = Number(active7dRes.rows[0]?.active7d ?? 0);
+  const totalPrompt = Number(r?.total_prompt ?? 0);
+  const totalCache = Number(r?.total_cache ?? 0);
+
+  return {
+    conversations: Number(r?.conversations ?? 0),
+    totalTurns: Number(r?.total_turns ?? 0),
+    medianTurnsPerConvo: Number(medianRes.rows[0]?.median ?? 0),
+    totalCostUsd: totalCost,
+    active7d,
+    costPerActiveUser7d: active7d > 0 ? totalCost / active7d : 0,
+    totalPromptTokens: totalPrompt,
+    totalCompletionTokens: Number(r?.total_completion ?? 0),
+    totalTokens: Number(r?.total_tokens ?? 0),
+    totalCacheReadTokens: totalCache,
+    cacheHitRate: totalPrompt > 0 ? totalCache / totalPrompt : 0,
+  };
+}
+
+export type EngagementUserRow = {
+  email: string;
+  full_name: string | null;
+  display_name: string | null;
+  conversations: number;
+  turns: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  last_active_at: string | null;
+};
+
+export async function listEngagementByUser(): Promise<EngagementUserRow[]> {
+  const pool = getPool();
+  const { rows } = await pool.query<EngagementUserRow>(`
+    SELECT
+      r.email,
+      r.full_name,
+      NULLIF(TRIM(COALESCE(u."firstName",'') || ' ' || COALESCE(u."lastName",'')), '') AS display_name,
+      COUNT(DISTINCT h."sessionId") FILTER (WHERE h."sessionId" IS NOT NULL)::int AS conversations,
+      COUNT(h.id)::int AS turns,
+      COALESCE(SUM(h."totalTokens"), 0)::bigint AS total_tokens,
+      COALESCE(SUM(h."totalCostUsd"), 0)::float8 AS total_cost_usd,
+      u.last_active_at::text AS last_active_at
+    FROM employee_roster r
+    INNER JOIN users u ON LOWER(u.email) = LOWER(r.email)
+    LEFT JOIN history_entries h ON h."userId" = u."userId"
+    WHERE u.email NOT LIKE '%@anon.lumilink'
+    GROUP BY r.email, r.full_name, u."firstName", u."lastName", u.last_active_at
+    ORDER BY total_cost_usd DESC
+  `);
+
+  return rows.map((row) => ({
+    ...row,
+    turns: Number(row.turns),
+    conversations: Number(row.conversations),
+    total_tokens: Number(row.total_tokens),
+    total_cost_usd: Number(row.total_cost_usd),
+  }));
+}
+
+// ============================================================================
+// ACTIVITY TRENDS
+// ============================================================================
+
+export type ActivityDay = {
+  day: string;
+  dau: number;
+  turns: number;
+  new_joiners: number;
+};
+
+export async function getDailyActivity(days = 30): Promise<ActivityDay[]> {
+  const pool = getPool();
+
+  // Build day series, left-join activity, and new joiners by first_seen_at
+  const { rows } = await pool.query<ActivityDay>(`
+    WITH days AS (
+      SELECT generate_series(
+        (CURRENT_DATE - ($1::int - 1))::timestamptz,
+        CURRENT_DATE::timestamptz,
+        '1 day'::interval
+      )::date AS day
+    ),
+    daily_activity AS (
+      SELECT
+        h."createdAt"::date AS day,
+        COUNT(DISTINCT h."userId")::int AS dau,
+        COUNT(*)::int AS turns
+      FROM history_entries h
+      INNER JOIN users u ON u."userId" = h."userId"
+      INNER JOIN employee_roster r ON LOWER(r.email) = LOWER(u.email)
+      WHERE u.email NOT LIKE '%@anon.lumilink'
+        AND h."createdAt"::date >= (CURRENT_DATE - ($1::int - 1))
+      GROUP BY h."createdAt"::date
+    ),
+    daily_joiners AS (
+      SELECT
+        u.first_seen_at::date AS day,
+        COUNT(DISTINCT u."userId")::int AS new_joiners
+      FROM users u
+      INNER JOIN employee_roster r ON LOWER(r.email) = LOWER(u.email)
+      WHERE u.first_seen_at IS NOT NULL
+        AND u.email NOT LIKE '%@anon.lumilink'
+        AND u.first_seen_at::date >= (CURRENT_DATE - ($1::int - 1))
+      GROUP BY u.first_seen_at::date
+    )
+    SELECT
+      d.day::text,
+      COALESCE(a.dau, 0)::int AS dau,
+      COALESCE(a.turns, 0)::int AS turns,
+      COALESCE(j.new_joiners, 0)::int AS new_joiners
+    FROM days d
+    LEFT JOIN daily_activity a ON a.day = d.day
+    LEFT JOIN daily_joiners j ON j.day = d.day
+    ORDER BY d.day ASC
+  `, [days]);
+
+  return rows;
+}

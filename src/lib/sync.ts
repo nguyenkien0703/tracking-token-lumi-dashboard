@@ -85,17 +85,19 @@ async function doSync(): Promise<void> {
         e.totalTokens ?? 0,
         e.totalCostUsd ?? 0,
         e.createdAt ?? null,
+        e.cacheReadTokens ?? 0,
       ]);
 
       for (const row of values) {
         await pool.query(
           `INSERT INTO history_entries
-             (id, "userId", "sessionId", model, "promptTokens", "completionTokens", "totalTokens", "totalCostUsd", "createdAt")
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+             (id, "userId", "sessionId", model, "promptTokens", "completionTokens", "totalTokens", "totalCostUsd", "createdAt", cache_read_tokens)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
            ON CONFLICT (id) DO UPDATE SET
              "userId"=$2, "sessionId"=$3, model=$4,
              "promptTokens"=$5, "completionTokens"=$6,
-             "totalTokens"=$7, "totalCostUsd"=$8, "createdAt"=$9`,
+             "totalTokens"=$7, "totalCostUsd"=$8, "createdAt"=$9,
+             cache_read_tokens=$10`,
           row
         );
       }

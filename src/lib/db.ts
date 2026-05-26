@@ -29,6 +29,9 @@ export async function initSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_history_userId ON history_entries("userId");
     CREATE INDEX IF NOT EXISTS idx_history_createdAt ON history_entries("createdAt");
 
+    ALTER TABLE history_entries ADD COLUMN IF NOT EXISTS cache_read_tokens INTEGER DEFAULT 0;
+    CREATE INDEX IF NOT EXISTS idx_history_sessionId ON history_entries("sessionId");
+
     CREATE TABLE IF NOT EXISTS users (
       "userId" INTEGER PRIMARY KEY,
       "firstName" TEXT,
