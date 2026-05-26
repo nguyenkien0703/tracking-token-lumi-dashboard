@@ -72,8 +72,12 @@ function derivePeriod(p: PeriodValue): { from?: string; to?: string } {
     case "24h": return { from: ago(day),            to: now.toISOString() };
     case "7d":  return { from: ago(7 * day),        to: now.toISOString() };
     case "30d": return { from: ago(30 * day),       to: now.toISOString() };
+    default: {
+      const _exhaustive: never = p.period;
+      void _exhaustive;
+      return {};
+    }
   }
-  return {};
 }
 
 function AdoptionKpiRow({ data, loading }: { data: AdoptionSummary | null; loading: boolean }) {
@@ -183,8 +187,12 @@ export default function OverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
   const loadDataRef = useRef<() => Promise<void>>(async () => {});
+  const abortRef = useRef<AbortController | null>(null);
 
   const loadData = useCallback(async () => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
     setLoading(true);
     setError(null);
     try {
@@ -193,29 +201,43 @@ export default function OverviewPage() {
       if (from) sp.set("from", from);
       if (to) sp.set("to", to);
 
-      const topUsersP = fetch(`/api/admin/top-users?${sp}`).then((r) => r.json());
+      const topUsersP = fetch(`/api/admin/top-users?${sp}`, { signal: ctrl.signal }).then((r) => r.json());
       const adoptionP =
         segment === "savameta"
-          ? fetch(`/api/savameta/adoption/summary`).then((r) => r.json())
+          ? fetch(`/api/savameta/adoption/summary`, { signal: ctrl.signal }).then((r) => r.json())
           : Promise.resolve(null);
 
       const [topJson, adoptionJson] = await Promise.all([topUsersP, adoptionP]);
+      if (ctrl.signal.aborted) return;
+
       if (!topJson?.success) throw new Error(topJson?.error || "Failed to load top users");
       setUsers(topJson.data?.users ?? []);
-      setAdoption(adoptionJson?.data ?? null);
+
+      if (segment === "savameta") {
+        if (adoptionJson && adoptionJson.success === false) {
+          console.warn("[adoption] fetch failed:", adoptionJson?.error);
+          setAdoption(null);
+        } else {
+          setAdoption(adoptionJson?.data ?? null);
+        }
+      } else {
+        setAdoption(null);
+      }
     } catch (e) {
+      if ((e as { name?: string })?.name === "AbortError") return;
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
-      setLoading(false);
+      if (!ctrl.signal.aborted) setLoading(false);
     }
   }, [segment, period]);
 
   // Keep ref updated so timer always calls latest loadData
   useEffect(() => { loadDataRef.current = loadData; }, [loadData]);
 
-  // Initial load + re-fetch on segment/period change
+  // Initial load + re-fetch on segment/period change; abort on unmount
   useEffect(() => {
     loadData();
+    return () => { abortRef.current?.abort(); };
   }, [loadData]);
 
   // Countdown timer — auto-refresh every 60s
@@ -252,6 +274,8 @@ export default function OverviewPage() {
           <button
             onClick={() => { loadData(); setCountdown(REFRESH_INTERVAL); }}
             disabled={loading}
+            aria-busy={loading}
+            aria-label={loading ? "Refreshing data" : "Refresh data"}
             className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm transition-colors flex items-center gap-1.5"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
@@ -284,7 +308,7 @@ export default function OverviewPage() {
 
       {/* Primary KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Active Users"  value={fmtInt(activeUsers)}    loading={loading} icon={<Users className="w-4 h-4" />} />
+        <StatCard label="Users in Top 10" value={fmtInt(activeUsers)} loading={loading} hint="by usage" icon={<Users className="w-4 h-4" />} />
         <StatCard label="Total Tokens"  value={fmtInt(totalTokens)}    loading={loading} icon={<Coins className="w-4 h-4" />} />
         <StatCard label="Total Cost"    value={fmtUsd(totalCostUsd)}   loading={loading} tone="warning" icon={<DollarSign className="w-4 h-4" />} />
         <StatCard label="Avg / User"    value={fmtUsd(avgCostPerUser)} loading={loading} hint="per active user" />
