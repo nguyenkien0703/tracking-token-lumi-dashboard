@@ -2,9 +2,23 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import DateRangePicker from "@/components/DateRangePicker";
+import { Users, Coins, DollarSign, Clock, UserPlus, RefreshCw, Loader2 } from "lucide-react";
+import { Segment, SEGMENT_LABELS } from "@/lib/segment";
+import SegmentTabs from "@/components/SegmentTabs";
+import StatCard from "@/components/StatCard";
+import EmptyState from "@/components/EmptyState";
+import PeriodChip, { PeriodValue } from "@/components/PeriodChip";
+import ResponsiveTable, { Column } from "@/components/ResponsiveTable";
 import UserSearch from "@/components/UserSearch";
-import { DateRange } from "@/types";
+
+// Defined inline to avoid importing server-only savameta-queries module
+type AdoptionSummary = {
+  totalEligible: number;
+  joined: number;
+  notJoined: number;
+  adoptionRate: number;
+  dailyActive7d: number;
+};
 
 interface TopUser {
   rank: number;
@@ -21,7 +35,7 @@ interface TopUser {
   requestCount: number;
 }
 
-const REFRESH_INTERVAL = 60; // 1 minute in seconds
+const REFRESH_INTERVAL = 60;
 
 function formatCountdown(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -29,67 +43,187 @@ function formatCountdown(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function fmtInt(n: number): string {
+  return n.toLocaleString();
+}
+
+function fmtUsd(n: number): string {
+  return `$${n.toFixed(4)}`;
+}
+
+function periodLabel(p: PeriodValue): string {
+  if (p.period === "custom" && p.from && p.to) return `${p.from} → ${p.to}`;
+  const map: Record<string, string> = {
+    "1h": "Last hour",
+    "24h": "Last 24h",
+    "7d": "Last 7 days",
+    "30d": "Last 30 days",
+  };
+  return map[p.period] ?? p.period;
+}
+
+function derivePeriod(p: PeriodValue): { from?: string; to?: string } {
+  if (p.period === "custom") return { from: p.from, to: p.to };
+  const now = new Date();
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
+  const day = 24 * 60 * 60 * 1000;
+  switch (p.period) {
+    case "1h":  return { from: ago(60 * 60 * 1000), to: now.toISOString() };
+    case "24h": return { from: ago(day),            to: now.toISOString() };
+    case "7d":  return { from: ago(7 * day),        to: now.toISOString() };
+    case "30d": return { from: ago(30 * day),       to: now.toISOString() };
+  }
+  return {};
+}
+
+function AdoptionKpiRow({ data, loading }: { data: AdoptionSummary | null; loading: boolean }) {
+  if (!loading && data && data.totalEligible === 0) {
+    return (
+      <EmptyState
+        icon={<UserPlus className="w-5 h-5" />}
+        title="Roster is empty"
+        description="Import employees in Settings → Roster to enable adoption metrics."
+        action={
+          <Link href="/settings/roster" className="text-primary text-sm hover:underline">
+            Open Roster →
+          </Link>
+        }
+      />
+    );
+  }
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <StatCard label="Total Eligible" value={fmtInt(data?.totalEligible ?? 0)} loading={loading} />
+      <StatCard label="Joined"         value={fmtInt(data?.joined ?? 0)}        loading={loading} tone="success" />
+      <StatCard label="Not Joined"     value={fmtInt(data?.notJoined ?? 0)}     loading={loading} tone="danger" />
+      <StatCard
+        label="Adoption Rate"
+        value={data ? `${(data.adoptionRate * 100).toFixed(1)}%` : "—"}
+        loading={loading}
+        tone="success"
+      />
+    </div>
+  );
+}
+
+const topUserCols: Column<TopUser>[] = [
+  {
+    key: "rank",
+    header: "Rank",
+    align: "center",
+    width: "50px",
+    render: (u) => (
+      <span className="text-text-secondary text-xs font-mono">{u.rank}</span>
+    ),
+  },
+  {
+    key: "user",
+    header: "User",
+    primary: true,
+    render: (u) => {
+      const displayName =
+        [u.firstName, u.lastName].filter(Boolean).join(" ") ||
+        u.userName ||
+        u.email ||
+        `#${u.userId}`;
+      const initials =
+        u.firstName?.[0] ?? u.lastName?.[0] ?? u.userName?.[0] ?? "#";
+      return (
+        <Link href={`/users/${u.userId}`} className="flex items-center gap-2.5 group">
+          {u.avatarUrl ? (
+            <img
+              src={u.avatarUrl}
+              alt=""
+              className="w-7 h-7 rounded-full object-cover shrink-0"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-xs font-bold text-primary">
+              {initials.toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-text-primary text-sm font-medium group-hover:text-primary transition-colors truncate">
+              {displayName}
+            </p>
+            {u.email && u.email !== displayName && (
+              <p className="text-text-secondary text-xs truncate">{u.email}</p>
+            )}
+          </div>
+        </Link>
+      );
+    },
+  },
+  {
+    key: "totalTokens",
+    header: "Tokens",
+    align: "right",
+    render: (u) => <span className="font-mono text-xs">{fmtInt(u.totalTokens)}</span>,
+  },
+  {
+    key: "requestCount",
+    header: "Requests",
+    align: "right",
+    mobileHidden: true,
+    render: (u) => <span className="font-mono text-xs">{fmtInt(u.requestCount)}</span>,
+  },
+  {
+    key: "totalCostUsd",
+    header: "Cost",
+    align: "right",
+    render: (u) => <span className="font-mono text-xs text-success">{fmtUsd(u.totalCostUsd)}</span>,
+  },
+];
+
 export default function OverviewPage() {
-  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
-  const [sortBy, setSortBy] = useState<"cost" | "tokens">("cost");
+  const [segment, setSegment] = useState<Segment>("all");
+  const [period, setPeriod] = useState<PeriodValue>({ period: "7d" });
   const [users, setUsers] = useState<TopUser[]>([]);
+  const [adoption, setAdoption] = useState<AdoptionSummary | null>(null);
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
-  const scanRef = useRef<() => Promise<void>>(async () => {});
-  const mountedRef = useRef(false);
+  const loadDataRef = useRef<() => Promise<void>>(async () => {});
 
-  const scan = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setUsers([]);
-    setProgress(0);
-
-    const progressInterval = setInterval(() => {
-      setProgress((p) => Math.min(p + 1, 90));
-    }, 300);
-
     try {
-      const sp = new URLSearchParams({ sortBy });
-      if (dateRange.from) sp.set("from", dateRange.from);
-      if (dateRange.to) sp.set("to", dateRange.to);
-      const res = await fetch(`/api/admin/top-users?${sp}`);
-      if (!res.ok) throw new Error(`Failed: ${res.status}`);
-      const json = await res.json();
-      setUsers(json.data?.users ?? []);
-      setProgress(100);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
+      const sp = new URLSearchParams({ segment, limit: "10" });
+      const { from, to } = derivePeriod(period);
+      if (from) sp.set("from", from);
+      if (to) sp.set("to", to);
+
+      const topUsersP = fetch(`/api/admin/top-users?${sp}`).then((r) => r.json());
+      const adoptionP =
+        segment === "savameta"
+          ? fetch(`/api/savameta/adoption/summary`).then((r) => r.json())
+          : Promise.resolve(null);
+
+      const [topJson, adoptionJson] = await Promise.all([topUsersP, adoptionP]);
+      if (!topJson?.success) throw new Error(topJson?.error || "Failed to load top users");
+      setUsers(topJson.data?.users ?? []);
+      setAdoption(adoptionJson?.data ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
-      clearInterval(progressInterval);
       setLoading(false);
     }
-  }, [dateRange, sortBy]);
+  }, [segment, period]);
 
-  // Keep ref updated so timer always calls latest scan
-  useEffect(() => { scanRef.current = scan; }, [scan]);
+  // Keep ref updated so timer always calls latest loadData
+  useEffect(() => { loadDataRef.current = loadData; }, [loadData]);
 
-  // Initial load
+  // Initial load + re-fetch on segment/period change
   useEffect(() => {
-    scan();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    loadData();
+  }, [loadData]);
 
-  // Re-fetch when filters change (skip initial mount)
-  useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      return;
-    }
-    scan();
-  }, [sortBy, dateRange]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Countdown timer — auto-refresh every 5 minutes
+  // Countdown timer — auto-refresh every 60s
   useEffect(() => {
     const timer = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) {
-          scanRef.current();
+          loadDataRef.current();
           return REFRESH_INTERVAL;
         }
         return c - 1;
@@ -98,226 +232,88 @@ export default function OverviewPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const totalCost = users.reduce((s, u) => s + u.totalCostUsd, 0);
+  const activeUsers = users.length;
   const totalTokens = users.reduce((s, u) => s + u.totalTokens, 0);
+  const totalCostUsd = users.reduce((s, u) => s + u.totalCostUsd, 0);
+  const avgCostPerUser = activeUsers > 0 ? totalCostUsd / activeUsers : 0;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Overview</h1>
-          <p className="text-slate-400 text-sm mt-0.5">
-            Top 100 users by usage
+          <h1 className="text-2xl font-bold text-text-primary">Overview</h1>
+          <p className="text-text-secondary text-sm mt-0.5">
+            {SEGMENT_LABELS[segment].label} · {periodLabel(period)}
           </p>
         </div>
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
-      </div>
-
-      {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3">
-        {/* User search */}
-        <UserSearch />
-
-        {/* Sort toggle */}
-        <div className="flex rounded-lg border border-slate-700 overflow-hidden text-xs">
+        <div className="flex items-center gap-2">
+          <PeriodChip value={period} onChange={setPeriod} />
           <button
-            onClick={() => setSortBy("cost")}
-            className={`px-3 py-1.5 transition-colors ${
-              sortBy === "cost"
-                ? "bg-indigo-600 text-white"
-                : "bg-slate-800 text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            By Cost
-          </button>
-          <button
-            onClick={() => setSortBy("tokens")}
-            className={`px-3 py-1.5 transition-colors ${
-              sortBy === "tokens"
-                ? "bg-indigo-600 text-white"
-                : "bg-slate-800 text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            By Tokens
-          </button>
-        </div>
-
-        {/* Refresh controls */}
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
-          {!loading && (
-            <span className="text-slate-300 text-xs bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap flex items-center gap-1.5">
-              <svg className="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Next refresh in{" "}
-              <span className={`font-mono font-semibold ${countdown <= 30 ? "text-amber-400" : "text-slate-200"}`}>
-                {formatCountdown(countdown)}
-              </span>
-            </span>
-          )}
-
-          <button
-            onClick={() => { scan(); setCountdown(REFRESH_INTERVAL); }}
+            onClick={() => { loadData(); setCountdown(REFRESH_INTERVAL); }}
             disabled={loading}
-            className="text-sm px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white transition-colors flex items-center gap-1.5 whitespace-nowrap"
+            className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm transition-colors flex items-center gap-1.5"
           >
-            {loading ? (
-              <>
-                <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Loading...
-              </>
-            ) : (
-              <>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh
-              </>
-            )}
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Refresh
           </button>
         </div>
       </div>
 
-      {/* Progress bar */}
-      {loading && (
-        <div className="w-full h-1 bg-slate-700 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-indigo-500 rounded-full transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      )}
+      {/* Segment + Search row */}
+      <div className="flex flex-wrap items-center gap-3">
+        <SegmentTabs value={segment} onChange={setSegment} />
+        <UserSearch />
+        {!loading && (
+          <span className="ml-auto text-text-secondary text-xs bg-surface border border-border-default px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+            <Clock className="w-3 h-3 text-text-muted" />
+            Next refresh in{" "}
+            <span className={`font-mono font-semibold ${countdown <= 30 ? "text-warning" : "text-text-primary"}`}>
+              {formatCountdown(countdown)}
+            </span>
+          </span>
+        )}
+      </div>
 
+      {/* Error */}
       {error && (
-        <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm px-4 py-3 rounded-lg">
+        <div className="bg-danger/10 border border-danger/40 text-danger text-sm px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
 
-      {/* Summary stats */}
-      {users.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Active Users</p>
-            <p className="text-2xl font-bold text-indigo-400">{users.length}</p>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Total Tokens</p>
-            <p className="text-2xl font-bold text-indigo-400">{totalTokens.toLocaleString()}</p>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Total Cost</p>
-            <p className="text-2xl font-bold text-emerald-400">${totalCost.toFixed(4)}</p>
-            <p className="text-slate-500 text-xs mt-0.5">USD</p>
-          </div>
-        </div>
+      {/* Primary KPI row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Active Users"  value={fmtInt(activeUsers)}    loading={loading} icon={<Users className="w-4 h-4" />} />
+        <StatCard label="Total Tokens"  value={fmtInt(totalTokens)}    loading={loading} icon={<Coins className="w-4 h-4" />} />
+        <StatCard label="Total Cost"    value={fmtUsd(totalCostUsd)}   loading={loading} tone="warning" icon={<DollarSign className="w-4 h-4" />} />
+        <StatCard label="Avg / User"    value={fmtUsd(avgCostPerUser)} loading={loading} hint="per active user" />
+      </div>
+
+      {/* Adoption KPI row — only when segment === "savameta" */}
+      {segment === "savameta" && (
+        <AdoptionKpiRow data={adoption} loading={loading} />
       )}
 
-      {/* Top users table */}
+      {/* Top users preview table */}
       <div>
-        <h2 className="text-slate-200 font-semibold mb-3">
-          Top Users — sorted by {sortBy === "cost" ? "Total Cost" : "Total Tokens"}
-          {users.length > 0 && (
-            <span className="ml-2 text-slate-500 font-normal text-sm">
-              ({users.length} users)
-            </span>
-          )}
-        </h2>
-
-        <div className="overflow-x-auto rounded-xl border border-slate-700">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
-              <tr>
-                <th className="px-4 py-3 w-10 text-center">Rank</th>
-                <th className="px-4 py-3">User</th>
-                <th className="px-4 py-3 text-right">Total Tokens</th>
-                <th className="px-4 py-3 text-right">Prompt</th>
-                <th className="px-4 py-3 text-right">Completion</th>
-                <th className="px-4 py-3 text-right">Requests</th>
-                <th className="px-4 py-3 text-right">Total Cost</th>
-                <th className="px-4 py-3 text-right">Avg / Request</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700/50">
-              {!loading && users.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
-                    No usage data found
-                  </td>
-                </tr>
-              )}
-              {users.map((u) => {
-                const displayName =
-                  [u.firstName, u.lastName].filter(Boolean).join(" ") ||
-                  u.userName ||
-                  u.email ||
-                  `#${u.userId}`;
-                const initials =
-                  u.firstName?.[0] ?? u.lastName?.[0] ?? u.userName?.[0] ?? "#";
-
-                return (
-                  <tr key={u.userId} className="bg-slate-900/50 hover:bg-slate-800/60 transition-colors">
-                    <td className="px-4 py-3 text-center">
-                      {u.rank === 1 ? (
-                        <span className="text-amber-400 font-bold">🥇</span>
-                      ) : u.rank === 2 ? (
-                        <span className="text-slate-400 font-bold">🥈</span>
-                      ) : u.rank === 3 ? (
-                        <span className="text-amber-700 font-bold">🥉</span>
-                      ) : (
-                        <span className="text-slate-500 text-xs">{u.rank}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link href={`/users/${u.userId}`} className="flex items-center gap-2.5 group">
-                        {u.avatarUrl ? (
-                          <img
-                            src={u.avatarUrl}
-                            alt=""
-                            className="w-7 h-7 rounded-full object-cover shrink-0"
-                          />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-indigo-900 flex items-center justify-center shrink-0 text-xs font-bold text-indigo-300">
-                            {initials.toUpperCase()}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-slate-200 text-sm font-medium group-hover:text-indigo-300 transition-colors truncate">
-                            {displayName}
-                          </p>
-                          {u.email && u.email !== displayName && (
-                            <p className="text-slate-500 text-xs truncate">{u.email}</p>
-                          )}
-                        </div>
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-indigo-300">
-                      {u.totalTokens.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-400 text-xs">
-                      {u.totalPromptTokens.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-400 text-xs">
-                      {u.totalCompletionTokens.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-300">
-                      {u.requestCount}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-400">
-                      ${u.totalCostUsd.toFixed(4)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-400 text-xs">
-                      {u.requestCount > 0
-                        ? Math.round(u.totalTokens / u.requestCount).toLocaleString()
-                        : "—"}{" "}
-                      tok
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-text-primary font-semibold">Top Users</h2>
+          <Link href="/users" className="text-primary text-sm hover:underline">View all →</Link>
+        </div>
+        <div className="bg-surface border border-border-default rounded-xl overflow-hidden">
+          <ResponsiveTable
+            columns={topUserCols}
+            rows={users}
+            rowKey={(u) => u.userId}
+            emptyState={
+              !loading ? (
+                <div className="px-4 py-10 text-center text-text-secondary text-sm">
+                  No usage data found
+                </div>
+              ) : undefined
+            }
+          />
         </div>
       </div>
     </div>
