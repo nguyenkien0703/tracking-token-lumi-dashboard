@@ -6,6 +6,7 @@ import SegmentTabs from "@/components/SegmentTabs";
 import PeriodChip, { type PeriodValue } from "@/components/PeriodChip";
 import ResponsiveTable, { type Column } from "@/components/ResponsiveTable";
 import UserSearch from "@/components/UserSearch";
+import { fmtInt, fmtUsd, derivePeriod } from "@/lib/format";
 
 type SubTab = "top" | "joined" | "never";
 
@@ -41,23 +42,6 @@ type NeverJoinedUser = {
   department: string | null;
   added_at: string;
 };
-
-function derivePeriod(p: PeriodValue): { from?: string; to?: string } {
-  if (p.period === "custom") return { from: p.from, to: p.to };
-  const now = new Date();
-  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
-  const day = 24 * 60 * 60 * 1000;
-  switch (p.period) {
-    case "1h":  return { from: ago(60 * 60 * 1000), to: now.toISOString() };
-    case "24h": return { from: ago(day),            to: now.toISOString() };
-    case "7d":  return { from: ago(7 * day),        to: now.toISOString() };
-    case "30d": return { from: ago(30 * day),       to: now.toISOString() };
-    default: { const _e: never = p.period; void _e; return {}; }
-  }
-}
-
-function fmtInt(n: number): string { return n.toLocaleString(); }
-function fmtUsd(n: number): string { return `$${n.toFixed(4)}`; }
 
 function displayNameOf(u: { firstName?: string | null; lastName?: string | null; userName?: string | null; email?: string | null; userId?: number }) {
   return [u.firstName, u.lastName].filter(Boolean).join(" ") || u.userName || u.email || (u.userId ? `#${u.userId}` : "—");
@@ -133,16 +117,15 @@ const topCols: Column<TopUser>[] = [
 
 const joinedCols: Column<JoinedUser>[] = [
   {
-    key: "email",
-    header: "Email",
+    key: "user",
+    header: "User",
     primary: true,
-    render: (u) => <span className="text-sm">{u.email}</span>,
-  },
-  {
-    key: "full_name",
-    header: "Name",
-    align: "left",
-    render: (u) => <span>{u.full_name ?? "—"}</span>,
+    render: (u: JoinedUser) => (
+      <div className="min-w-0">
+        <p className="text-text-primary text-sm font-medium truncate">{u.display_name || u.full_name || u.email}</p>
+        <p className="text-text-secondary text-xs truncate">{u.email}</p>
+      </div>
+    ),
   },
   {
     key: "department",
@@ -222,6 +205,7 @@ export default function UsersPage() {
     setError(null);
     try {
       if (subTab === "top") {
+        setTopUsers([]);
         const sp = new URLSearchParams({ segment, limit: "100" });
         const { from, to } = derivePeriod(period);
         if (from) sp.set("from", from);
@@ -232,14 +216,28 @@ export default function UsersPage() {
         if (!j?.success) throw new Error(j?.error || "Failed to load top users");
         setTopUsers(j.data?.users ?? []);
       } else if (subTab === "joined") {
+        setJoinedUsers([]);
         const r = await fetch(`/api/savameta/adoption/joined`, { signal: ctrl.signal });
         const j = await r.json();
         if (ctrl.signal.aborted) return;
+        if (!r.ok) {
+          console.warn("[joined] fetch failed:", r.status, j);
+          setJoinedUsers([]);
+          setError(`Joined endpoint returned ${r.status}`);
+          return;
+        }
         setJoinedUsers(Array.isArray(j?.data) ? j.data : []);
       } else if (subTab === "never") {
+        setNeverJoined([]);
         const r = await fetch(`/api/savameta/adoption/never-joined`, { signal: ctrl.signal });
         const j = await r.json();
         if (ctrl.signal.aborted) return;
+        if (!r.ok) {
+          console.warn("[never] fetch failed:", r.status, j);
+          setNeverJoined([]);
+          setError(`Never-joined endpoint returned ${r.status}`);
+          return;
+        }
         setNeverJoined(Array.isArray(j?.data) ? j.data : []);
       }
     } catch (e) {
@@ -255,9 +253,9 @@ export default function UsersPage() {
     return () => { abortRef.current?.abort(); };
   }, [loadData]);
 
-  const loadingState: ReactNode = loading ? (
-    <div className="px-4 py-10 text-center text-text-secondary text-sm">Loading…</div>
-  ) : undefined;
+  const emptyState: ReactNode = (
+    <div className="px-4 py-10 text-center text-text-secondary text-sm">No data found</div>
+  );
 
   return (
     <div className="space-y-6">
@@ -283,7 +281,6 @@ export default function UsersPage() {
         <div className="inline-flex bg-surface border border-border-default rounded-lg overflow-hidden">
           {(["top", "joined", "never"] as SubTab[]).map((t) => {
             const active = t === subTab;
-            const label = t === "top" ? "Top usage" : t === "joined" ? "Joined" : "Never joined";
             return (
               <button
                 key={t}
@@ -294,7 +291,7 @@ export default function UsersPage() {
                   active ? "bg-primary text-white" : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
                 }`}
               >
-                {label}
+                {subTabLabel(t, "savameta")}
               </button>
             );
           })}
@@ -308,6 +305,14 @@ export default function UsersPage() {
         </div>
       )}
 
+      {/* Loading banner */}
+      {loading && (
+        <div className="flex items-center gap-2 text-text-secondary text-xs bg-surface border border-border-default px-3 py-2 rounded-lg">
+          <span className="inline-block w-3 h-3 border-2 border-text-secondary border-t-transparent rounded-full animate-spin" />
+          Loading…
+        </div>
+      )}
+
       {/* Table area */}
       <div className="bg-surface border border-border-default rounded-xl overflow-hidden">
         {subTab === "top" && (
@@ -315,7 +320,7 @@ export default function UsersPage() {
             columns={topCols}
             rows={topUsers}
             rowKey={(u) => u.userId}
-            emptyState={loadingState}
+            emptyState={emptyState}
           />
         )}
         {subTab === "joined" && (
@@ -323,7 +328,7 @@ export default function UsersPage() {
             columns={joinedCols}
             rows={joinedUsers}
             rowKey={(u) => u.user_id}
-            emptyState={loadingState}
+            emptyState={emptyState}
           />
         )}
         {subTab === "never" && (
@@ -331,7 +336,7 @@ export default function UsersPage() {
             columns={neverCols}
             rows={neverJoined}
             rowKey={(u) => u.email}
-            emptyState={loadingState}
+            emptyState={emptyState}
           />
         )}
       </div>

@@ -10,6 +10,7 @@ import EmptyState from "@/components/EmptyState";
 import PeriodChip, { PeriodValue } from "@/components/PeriodChip";
 import ResponsiveTable, { Column } from "@/components/ResponsiveTable";
 import UserSearch from "@/components/UserSearch";
+import { fmtInt, fmtUsd, derivePeriod, periodLabel } from "@/lib/format";
 
 // Defined inline to avoid importing server-only savameta-queries module
 type AdoptionSummary = {
@@ -41,43 +42,6 @@ function formatCountdown(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function fmtInt(n: number): string {
-  return n.toLocaleString();
-}
-
-function fmtUsd(n: number): string {
-  return `$${n.toFixed(4)}`;
-}
-
-function periodLabel(p: PeriodValue): string {
-  if (p.period === "custom" && p.from && p.to) return `${p.from} → ${p.to}`;
-  const map: Record<string, string> = {
-    "1h": "Last hour",
-    "24h": "Last 24h",
-    "7d": "Last 7 days",
-    "30d": "Last 30 days",
-  };
-  return map[p.period] ?? p.period;
-}
-
-function derivePeriod(p: PeriodValue): { from?: string; to?: string } {
-  if (p.period === "custom") return { from: p.from, to: p.to };
-  const now = new Date();
-  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
-  const day = 24 * 60 * 60 * 1000;
-  switch (p.period) {
-    case "1h":  return { from: ago(60 * 60 * 1000), to: now.toISOString() };
-    case "24h": return { from: ago(day),            to: now.toISOString() };
-    case "7d":  return { from: ago(7 * day),        to: now.toISOString() };
-    case "30d": return { from: ago(30 * day),       to: now.toISOString() };
-    default: {
-      const _exhaustive: never = p.period;
-      void _exhaustive;
-      return {};
-    }
-  }
 }
 
 function AdoptionKpiRow({ data, loading }: { data: AdoptionSummary | null; loading: boolean }) {
