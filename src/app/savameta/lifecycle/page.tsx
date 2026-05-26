@@ -18,8 +18,8 @@ type LifecycleUser = {
 };
 
 const BUCKET_META: Record<Bucket, { label: string; color: string; hint: string }> = {
-  active: { label: "Active", color: "#10b981", hint: "≤ 7 days" },
-  at_risk: { label: "At Risk", color: "#f59e0b", hint: "8–30 days" },
+  active: { label: "Active", color: "#10b981", hint: "≤ 3 days" },
+  at_risk: { label: "At Risk", color: "#f59e0b", hint: "4–30 days" },
   dormant: { label: "Dormant", color: "#ef4444", hint: "> 30 days" },
   never_joined: { label: "Never Joined", color: "#64748b", hint: "no activity" },
 };
@@ -99,7 +99,7 @@ export default function LifecyclePage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-100">Lifecycle</h1>
           <p className="text-sm text-slate-400 mt-1">
-            Active (≤7d) / At-risk (8–30d) / Dormant (&gt;30d) / Never joined.
+            Active (≤3d) / At-risk (4–30d) / Dormant (&gt;30d) / Never joined.
           </p>
         </div>
         <button

@@ -8,8 +8,8 @@ type Summary = {
   totalTurns: number;
   medianTurnsPerConvo: number;
   totalCostUsd: number;
-  active7d: number;
-  costPerActiveUser7d: number;
+  dailyActive7d: number;
+  costPerDailyActiveUser7d: number;
   totalPromptTokens: number;
   totalCompletionTokens: number;
   totalTokens: number;
@@ -118,9 +118,9 @@ export default function EngagementPage() {
           tone="warning"
         />
         <StatCard
-          label="Cost / Active User (7d)"
-          value={summary ? fmtUsd(summary.costPerActiveUser7d) : "—"}
-          hint={summary ? `${summary.active7d} active` : ""}
+          label="Cost / Daily Active User (7/7d)"
+          value={summary ? fmtUsd(summary.costPerDailyActiveUser7d) : "—"}
+          hint={summary ? `${summary.dailyActive7d} daily active` : ""}
           tone="warning"
         />
       </div>

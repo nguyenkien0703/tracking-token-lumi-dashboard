@@ -8,7 +8,7 @@ type Summary = {
   joined: number;
   notJoined: number;
   adoptionRate: number;
-  active7d: number;
+  dailyActive7d: number;
 };
 
 type JoinedUser = {
@@ -113,7 +113,12 @@ export default function AdoptionPage() {
           value={summary ? `${(summary.adoptionRate * 100).toFixed(0)}%` : "—"}
           tone="success"
         />
-        <StatCard label="Active 7d" value={summary?.active7d ?? "—"} tone="success" />
+        <StatCard
+          label="Daily Active (7/7d)"
+          value={summary?.dailyActive7d ?? "—"}
+          hint="active every day in last 7"
+          tone="success"
+        />
         <StatCard label="Never Joined" value={summary?.notJoined ?? "—"} tone="warning" />
       </div>
 

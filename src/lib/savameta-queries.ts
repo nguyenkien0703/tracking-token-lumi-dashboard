@@ -2,12 +2,31 @@ import { getPool } from "./db";
 
 const SAVAMETA_EMAIL_FILTER = `LOWER(u.email) LIKE '%@savameta.com' AND u.email NOT LIKE '%@anon.lumilink'`;
 
+// "Daily Active 7/7d" = user has ≥1 history entry on each of the last 7 calendar days.
+// createdAt is stored as ISO-8601 text, so we cast to timestamptz before bucketing by UTC date.
+export async function countDailyActiveUsers7d(): Promise<number> {
+  const pool = getPool();
+  const { rows } = await pool.query<{ count: string }>(`
+    SELECT COUNT(*)::int AS count FROM (
+      SELECT u."userId"
+      FROM history_entries h
+      INNER JOIN users u ON u."userId" = h."userId"
+      INNER JOIN employee_roster r ON LOWER(r.email) = LOWER(u.email)
+      WHERE h."createdAt"::timestamptz >= NOW() - INTERVAL '7 days'
+        AND u.email NOT LIKE '%@anon.lumilink'
+      GROUP BY u."userId"
+      HAVING COUNT(DISTINCT (h."createdAt"::timestamptz AT TIME ZONE 'UTC')::date) = 7
+    ) s
+  `);
+  return Number(rows[0]?.count ?? 0);
+}
+
 export type AdoptionSummary = {
   totalEligible: number;
   joined: number;
   notJoined: number;
   adoptionRate: number;
-  active7d: number;
+  dailyActive7d: number;
 };
 
 export async function getAdoptionSummary(): Promise<AdoptionSummary> {
@@ -18,23 +37,21 @@ export async function getAdoptionSummary(): Promise<AdoptionSummary> {
   );
   const totalEligible = Number(eligibleRes.rows[0]?.total ?? 0);
 
-  const joinedRes = await pool.query<{ joined: string; active7d: string }>(`
-    SELECT
-      COUNT(DISTINCT r.email)::int AS joined,
-      COUNT(DISTINCT CASE WHEN u.last_active_at >= NOW() - INTERVAL '7 days' THEN r.email END)::int AS active7d
+  const joinedRes = await pool.query<{ joined: string }>(`
+    SELECT COUNT(DISTINCT r.email)::int AS joined
     FROM employee_roster r
     INNER JOIN users u ON LOWER(u.email) = LOWER(r.email)
     WHERE u.email NOT LIKE '%@anon.lumilink'
   `);
   const joined = Number(joinedRes.rows[0]?.joined ?? 0);
-  const active7d = Number(joinedRes.rows[0]?.active7d ?? 0);
+  const dailyActive7d = await countDailyActiveUsers7d();
 
   return {
     totalEligible,
     joined,
     notJoined: Math.max(0, totalEligible - joined),
     adoptionRate: totalEligible > 0 ? joined / totalEligible : 0,
-    active7d,
+    dailyActive7d,
   };
 }
 
@@ -145,7 +162,7 @@ export async function getLifecycleCounts(): Promise<LifecycleCounts> {
     SELECT
       CASE
         WHEN u.last_active_at IS NULL THEN 'never_joined'
-        WHEN u.last_active_at >= NOW() - INTERVAL '7 days' THEN 'active'
+        WHEN u.last_active_at >= NOW() - INTERVAL '3 days' THEN 'active'
         WHEN u.last_active_at >= NOW() - INTERVAL '30 days' THEN 'at_risk'
         ELSE 'dormant'
       END AS bucket,
@@ -184,7 +201,7 @@ export async function listUsersInBucket(bucket: LifecycleBucket): Promise<Lifecy
         ELSE NULL END AS days_since_last_activity,
       CASE
         WHEN u.last_active_at IS NULL THEN 'never_joined'
-        WHEN u.last_active_at >= NOW() - INTERVAL '7 days' THEN 'active'
+        WHEN u.last_active_at >= NOW() - INTERVAL '3 days' THEN 'active'
         WHEN u.last_active_at >= NOW() - INTERVAL '30 days' THEN 'at_risk'
         ELSE 'dormant'
       END AS bucket
@@ -193,7 +210,7 @@ export async function listUsersInBucket(bucket: LifecycleBucket): Promise<Lifecy
     WHERE (
       CASE
         WHEN u.last_active_at IS NULL THEN 'never_joined'
-        WHEN u.last_active_at >= NOW() - INTERVAL '7 days' THEN 'active'
+        WHEN u.last_active_at >= NOW() - INTERVAL '3 days' THEN 'active'
         WHEN u.last_active_at >= NOW() - INTERVAL '30 days' THEN 'at_risk'
         ELSE 'dormant'
       END
@@ -214,8 +231,8 @@ export type EngagementSummary = {
   totalTurns: number;
   medianTurnsPerConvo: number;
   totalCostUsd: number;
-  active7d: number;
-  costPerActiveUser7d: number;
+  dailyActive7d: number;
+  costPerDailyActiveUser7d: number;
   totalPromptTokens: number;
   totalCompletionTokens: number;
   totalTokens: number;
@@ -264,16 +281,9 @@ export async function getEngagementSummary(): Promise<EngagementSummary> {
     ) s
   `);
 
-  const active7dRes = await pool.query<{ active7d: string }>(`
-    SELECT COUNT(DISTINCT u."userId")::int AS active7d
-    FROM users u
-    INNER JOIN employee_roster r ON LOWER(r.email) = LOWER(u.email)
-    WHERE u.last_active_at >= NOW() - INTERVAL '7 days'
-      AND u.email NOT LIKE '%@anon.lumilink'
-  `);
+  const dailyActive7d = await countDailyActiveUsers7d();
 
   const totalCost = Number(r?.total_cost ?? 0);
-  const active7d = Number(active7dRes.rows[0]?.active7d ?? 0);
   const totalPrompt = Number(r?.total_prompt ?? 0);
   const totalCache = Number(r?.total_cache ?? 0);
 
@@ -282,8 +292,8 @@ export async function getEngagementSummary(): Promise<EngagementSummary> {
     totalTurns: Number(r?.total_turns ?? 0),
     medianTurnsPerConvo: Number(medianRes.rows[0]?.median ?? 0),
     totalCostUsd: totalCost,
-    active7d,
-    costPerActiveUser7d: active7d > 0 ? totalCost / active7d : 0,
+    dailyActive7d,
+    costPerDailyActiveUser7d: dailyActive7d > 0 ? totalCost / dailyActive7d : 0,
     totalPromptTokens: totalPrompt,
     totalCompletionTokens: Number(r?.total_completion ?? 0),
     totalTokens: Number(r?.total_tokens ?? 0),
@@ -388,6 +398,128 @@ export async function getDailyActivity(days = 30): Promise<ActivityDay[]> {
     LEFT JOIN daily_joiners j ON j.day = d.day
     ORDER BY d.day ASC
   `, [days]);
+
+  return rows;
+}
+
+// ============================================================================
+// TRIGGERS
+// ============================================================================
+
+export const RETURNING_IDLE_DAYS = 7;
+export const FIRST_VALUE_TURN_THRESHOLD = 5;
+
+export type ReturningUser = {
+  email: string;
+  full_name: string | null;
+  display_name: string | null;
+  returned_at: string;
+  previous_active_at: string;
+  idle_days: number;
+};
+
+/**
+ * A user "returned" if they had a gap of >= 7 days between two activities
+ * AND the recent activity falls within the last `windowDays` days.
+ * If a user returned multiple times in the window, we surface the most recent.
+ */
+export async function detectReturningUsers(windowDays: number): Promise<ReturningUser[]> {
+  const pool = getPool();
+  const { rows } = await pool.query<ReturningUser>(`
+    WITH activity AS (
+      SELECT
+        h."userId",
+        h."createdAt"::timestamptz AS ts,
+        LAG(h."createdAt"::timestamptz) OVER (PARTITION BY h."userId" ORDER BY h."createdAt") AS prev_ts
+      FROM history_entries h
+      WHERE h."userId" IS NOT NULL
+    ),
+    returns AS (
+      SELECT
+        a."userId",
+        a.ts AS returned_at,
+        a.prev_ts AS previous_active_at,
+        EXTRACT(EPOCH FROM (a.ts - a.prev_ts)) / 86400.0 AS idle_days
+      FROM activity a
+      WHERE a.prev_ts IS NOT NULL
+        AND a.ts - a.prev_ts >= INTERVAL '${RETURNING_IDLE_DAYS} days'
+        AND a.ts >= NOW() - ($1::int * INTERVAL '1 day')
+    ),
+    latest AS (
+      SELECT DISTINCT ON (r."userId")
+        r."userId",
+        r.returned_at,
+        r.previous_active_at,
+        r.idle_days
+      FROM returns r
+      ORDER BY r."userId", r.returned_at DESC
+    )
+    SELECT
+      er.email,
+      er.full_name,
+      NULLIF(TRIM(COALESCE(u."firstName",'') || ' ' || COALESCE(u."lastName",'')), '') AS display_name,
+      l.returned_at::text,
+      l.previous_active_at::text,
+      ROUND(l.idle_days::numeric, 1)::float8 AS idle_days
+    FROM latest l
+    INNER JOIN users u ON u."userId" = l."userId"
+    INNER JOIN employee_roster er ON LOWER(er.email) = LOWER(u.email)
+    WHERE u.email NOT LIKE '%@anon.lumilink'
+    ORDER BY l.returned_at DESC
+  `, [windowDays]);
+
+  return rows;
+}
+
+export type FirstValueUser = {
+  email: string;
+  full_name: string | null;
+  display_name: string | null;
+  first_value_at: string;
+  session_id: string;
+  turns_at_value: number;
+};
+
+/**
+ * "First value" = the moment a user's session crossed FIRST_VALUE_TURN_THRESHOLD turns.
+ * We report each user's earliest such moment.
+ */
+export async function detectFirstValueUsers(): Promise<FirstValueUser[]> {
+  const pool = getPool();
+  const { rows } = await pool.query<FirstValueUser>(`
+    WITH ranked AS (
+      SELECT
+        h."userId",
+        h."sessionId",
+        h."createdAt"::timestamptz AS ts,
+        ROW_NUMBER() OVER (PARTITION BY h."userId", h."sessionId" ORDER BY h."createdAt") AS turn_no
+      FROM history_entries h
+      WHERE h."userId" IS NOT NULL AND h."sessionId" IS NOT NULL
+    ),
+    threshold_hits AS (
+      SELECT "userId", "sessionId", ts, turn_no
+      FROM ranked
+      WHERE turn_no = $1
+    ),
+    first_per_user AS (
+      SELECT DISTINCT ON ("userId")
+        "userId", "sessionId", ts, turn_no
+      FROM threshold_hits
+      ORDER BY "userId", ts ASC
+    )
+    SELECT
+      er.email,
+      er.full_name,
+      NULLIF(TRIM(COALESCE(u."firstName",'') || ' ' || COALESCE(u."lastName",'')), '') AS display_name,
+      f.ts::text AS first_value_at,
+      f."sessionId" AS session_id,
+      f.turn_no::int AS turns_at_value
+    FROM first_per_user f
+    INNER JOIN users u ON u."userId" = f."userId"
+    INNER JOIN employee_roster er ON LOWER(er.email) = LOWER(u.email)
+    WHERE u.email NOT LIKE '%@anon.lumilink'
+    ORDER BY f.ts DESC
+  `, [FIRST_VALUE_TURN_THRESHOLD]);
 
   return rows;
 }
