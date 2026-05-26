@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import StatCard from "@/components/savameta/StatCard";
-import SegmentTabs, { type Segment } from "@/components/savameta/SegmentTabs";
+import SegmentTabs from "@/components/SegmentTabs";
+import type { Segment } from "@/lib/segment";
 
 type Bucket = "active" | "at_risk" | "dormant" | "never_joined";
 

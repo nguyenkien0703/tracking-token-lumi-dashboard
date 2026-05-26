@@ -1,12 +1,8 @@
 import { getPool } from "./db";
+import type { Segment } from "@/lib/segment";
 
-export type Segment = "all" | "savameta" | "external" | "anonymous";
-
-export const SEGMENTS: Segment[] = ["all", "savameta", "external", "anonymous"];
-
-export function isSegment(v: unknown): v is Segment {
-  return typeof v === "string" && (SEGMENTS as string[]).includes(v);
-}
+export type { Segment };
+export { SEGMENTS, isSegment } from "@/lib/segment";
 
 // SQL fragment matching `u.email` against the segment.
 // "all" excludes nothing. "savameta" = @savameta.com. "external" = signed-in but not savameta.

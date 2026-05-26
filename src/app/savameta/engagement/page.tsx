@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import StatCard from "@/components/savameta/StatCard";
-import SegmentTabs, { type Segment } from "@/components/savameta/SegmentTabs";
+import SegmentTabs from "@/components/SegmentTabs";
+import type { Segment } from "@/lib/segment";
 
 type Summary = {
   conversations: number;
