@@ -3,7 +3,7 @@ import { getAdminToken } from "./auth";
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "";
 const PAGE_SIZE = 1000;
-const MAX_RECORDS = 50000;
+const MAX_RECORDS = 200000;
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
 let syncPromise: Promise<void> | null = null;
@@ -103,6 +103,21 @@ async function doSync(): Promise<void> {
       fetched += entries.length;
       offset += PAGE_SIZE;
     } while (fetched < total && fetched < MAX_RECORDS);
+
+    // Backfill first_seen_at / last_active_at on users from history_entries
+    await pool.query(`
+      INSERT INTO users ("userId", first_seen_at, last_active_at)
+      SELECT
+        h."userId",
+        MIN(h."createdAt"::timestamptz),
+        MAX(h."createdAt"::timestamptz)
+      FROM history_entries h
+      WHERE h."userId" IS NOT NULL
+      GROUP BY h."userId"
+      ON CONFLICT ("userId") DO UPDATE SET
+        first_seen_at = LEAST(users.first_seen_at, EXCLUDED.first_seen_at),
+        last_active_at = GREATEST(users.last_active_at, EXCLUDED.last_active_at)
+    `);
 
     await pool.query(
       `UPDATE sync_state SET "lastSyncAt"=$1, "totalRecords"=$2, status='idle' WHERE id=1`,

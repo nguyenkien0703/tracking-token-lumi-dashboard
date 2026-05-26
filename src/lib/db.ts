@@ -39,6 +39,13 @@ export async function initSchema(): Promise<void> {
       "updatedAt" TEXT
     );
 
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ;
+
+    CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email));
+    CREATE INDEX IF NOT EXISTS idx_users_first_seen ON users (first_seen_at);
+    CREATE INDEX IF NOT EXISTS idx_users_last_active ON users (last_active_at);
+
     CREATE TABLE IF NOT EXISTS sync_state (
       id INTEGER PRIMARY KEY DEFAULT 1,
       "lastSyncAt" TEXT,

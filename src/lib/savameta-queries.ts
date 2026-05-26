@@ -1,0 +1,206 @@
+import { getPool } from "./db";
+
+const SAVAMETA_EMAIL_FILTER = `LOWER(u.email) LIKE '%@savameta.com' AND u.email NOT LIKE '%@anon.lumilink'`;
+
+export type AdoptionSummary = {
+  totalEligible: number;
+  joined: number;
+  notJoined: number;
+  adoptionRate: number;
+  active7d: number;
+};
+
+export async function getAdoptionSummary(): Promise<AdoptionSummary> {
+  const pool = getPool();
+
+  const eligibleRes = await pool.query<{ total: string }>(
+    `SELECT COUNT(*)::int AS total FROM employee_roster`
+  );
+  const totalEligible = Number(eligibleRes.rows[0]?.total ?? 0);
+
+  const joinedRes = await pool.query<{ joined: string; active7d: string }>(`
+    SELECT
+      COUNT(DISTINCT r.email)::int AS joined,
+      COUNT(DISTINCT CASE WHEN u.last_active_at >= NOW() - INTERVAL '7 days' THEN r.email END)::int AS active7d
+    FROM employee_roster r
+    INNER JOIN users u ON LOWER(u.email) = LOWER(r.email)
+    WHERE u.email NOT LIKE '%@anon.lumilink'
+  `);
+  const joined = Number(joinedRes.rows[0]?.joined ?? 0);
+  const active7d = Number(joinedRes.rows[0]?.active7d ?? 0);
+
+  return {
+    totalEligible,
+    joined,
+    notJoined: Math.max(0, totalEligible - joined),
+    adoptionRate: totalEligible > 0 ? joined / totalEligible : 0,
+    active7d,
+  };
+}
+
+export type JoinedUser = {
+  email: string;
+  full_name: string | null;
+  department: string | null;
+  user_id: number;
+  display_name: string | null;
+  first_seen_at: string | null;
+  last_active_at: string | null;
+  days_since_last_activity: number | null;
+};
+
+export async function listJoinedUsers(): Promise<JoinedUser[]> {
+  const pool = getPool();
+  const { rows } = await pool.query<JoinedUser>(`
+    SELECT
+      r.email,
+      r.full_name,
+      r.department,
+      u."userId" AS user_id,
+      NULLIF(TRIM(COALESCE(u."firstName",'') || ' ' || COALESCE(u."lastName",'')), '') AS display_name,
+      u.first_seen_at::text AS first_seen_at,
+      u.last_active_at::text AS last_active_at,
+      CASE WHEN u.last_active_at IS NOT NULL
+        THEN EXTRACT(DAY FROM (NOW() - u.last_active_at))::int
+        ELSE NULL END AS days_since_last_activity
+    FROM employee_roster r
+    INNER JOIN users u ON LOWER(u.email) = LOWER(r.email)
+    WHERE u.email NOT LIKE '%@anon.lumilink'
+    ORDER BY u.last_active_at DESC NULLS LAST
+  `);
+  return rows;
+}
+
+export type NeverJoinedUser = {
+  email: string;
+  full_name: string | null;
+  department: string | null;
+  added_at: string;
+};
+
+export async function listNeverJoinedUsers(): Promise<NeverJoinedUser[]> {
+  const pool = getPool();
+  const { rows } = await pool.query<NeverJoinedUser>(`
+    SELECT
+      r.email,
+      r.full_name,
+      r.department,
+      r.added_at::text
+    FROM employee_roster r
+    LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
+      AND u.email NOT LIKE '%@anon.lumilink'
+    WHERE u."userId" IS NULL
+    ORDER BY r.added_at DESC
+  `);
+  return rows;
+}
+
+export type ReleaseJoiners = {
+  id: number;
+  name: string;
+  start_date: string;
+  end_date: string | null;
+  new_joiners: number;
+  days_active: number;
+  velocity: number;
+};
+
+export async function getJoinersByRelease(): Promise<ReleaseJoiners[]> {
+  const pool = getPool();
+  const { rows } = await pool.query<ReleaseJoiners>(`
+    SELECT
+      rel.id,
+      rel.name,
+      rel.start_date::text,
+      rel.end_date::text,
+      COUNT(DISTINCT CASE
+        WHEN u.first_seen_at >= rel.start_date::timestamptz
+          AND (rel.end_date IS NULL OR u.first_seen_at < (rel.end_date::date + 1)::timestamptz)
+        THEN r.email
+      END)::int AS new_joiners,
+      GREATEST(1, EXTRACT(DAY FROM (
+        COALESCE(rel.end_date::timestamptz, NOW()) - rel.start_date::timestamptz
+      ))::int) AS days_active,
+      0.0::float8 AS velocity
+    FROM releases rel
+    LEFT JOIN employee_roster r ON true
+    LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email) AND u.email NOT LIKE '%@anon.lumilink'
+    GROUP BY rel.id, rel.name, rel.start_date, rel.end_date
+    ORDER BY rel.start_date ASC
+  `);
+
+  return rows.map((row) => ({
+    ...row,
+    velocity: row.days_active > 0 ? row.new_joiners / row.days_active : 0,
+  }));
+}
+
+export type LifecycleBucket = "active" | "at_risk" | "dormant" | "never_joined";
+
+export type LifecycleCounts = Record<LifecycleBucket, number>;
+
+export async function getLifecycleCounts(): Promise<LifecycleCounts> {
+  const pool = getPool();
+  const { rows } = await pool.query<{ bucket: LifecycleBucket; count: string }>(`
+    SELECT
+      CASE
+        WHEN u.last_active_at IS NULL THEN 'never_joined'
+        WHEN u.last_active_at >= NOW() - INTERVAL '7 days' THEN 'active'
+        WHEN u.last_active_at >= NOW() - INTERVAL '30 days' THEN 'at_risk'
+        ELSE 'dormant'
+      END AS bucket,
+      COUNT(*)::int AS count
+    FROM employee_roster r
+    LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email) AND u.email NOT LIKE '%@anon.lumilink'
+    GROUP BY 1
+  `);
+
+  const result: LifecycleCounts = { active: 0, at_risk: 0, dormant: 0, never_joined: 0 };
+  for (const row of rows) {
+    result[row.bucket] = Number(row.count);
+  }
+  return result;
+}
+
+export type LifecycleUser = {
+  email: string;
+  full_name: string | null;
+  display_name: string | null;
+  last_active_at: string | null;
+  days_since_last_activity: number | null;
+  bucket: LifecycleBucket;
+};
+
+export async function listUsersInBucket(bucket: LifecycleBucket): Promise<LifecycleUser[]> {
+  const pool = getPool();
+  const { rows } = await pool.query<LifecycleUser>(`
+    SELECT
+      r.email,
+      r.full_name,
+      NULLIF(TRIM(COALESCE(u."firstName",'') || ' ' || COALESCE(u."lastName",'')), '') AS display_name,
+      u.last_active_at::text AS last_active_at,
+      CASE WHEN u.last_active_at IS NOT NULL
+        THEN EXTRACT(DAY FROM (NOW() - u.last_active_at))::int
+        ELSE NULL END AS days_since_last_activity,
+      CASE
+        WHEN u.last_active_at IS NULL THEN 'never_joined'
+        WHEN u.last_active_at >= NOW() - INTERVAL '7 days' THEN 'active'
+        WHEN u.last_active_at >= NOW() - INTERVAL '30 days' THEN 'at_risk'
+        ELSE 'dormant'
+      END AS bucket
+    FROM employee_roster r
+    LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email) AND u.email NOT LIKE '%@anon.lumilink'
+    WHERE (
+      CASE
+        WHEN u.last_active_at IS NULL THEN 'never_joined'
+        WHEN u.last_active_at >= NOW() - INTERVAL '7 days' THEN 'active'
+        WHEN u.last_active_at >= NOW() - INTERVAL '30 days' THEN 'at_risk'
+        ELSE 'dormant'
+      END
+    ) = $1
+    ORDER BY u.last_active_at DESC NULLS LAST
+  `, [bucket]);
+  return rows;
+}
+
+export { SAVAMETA_EMAIL_FILTER };
