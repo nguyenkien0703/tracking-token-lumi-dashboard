@@ -32,6 +32,10 @@ export async function initSchema(): Promise<void> {
     ALTER TABLE history_entries ADD COLUMN IF NOT EXISTS cache_read_tokens INTEGER DEFAULT 0;
     CREATE INDEX IF NOT EXISTS idx_history_sessionId ON history_entries("sessionId");
 
+    -- Production has anonymous traffic with userId=null; allow NULL.
+    -- Savameta queries always INNER JOIN users so anonymous rows are filtered out.
+    ALTER TABLE history_entries ALTER COLUMN "userId" DROP NOT NULL;
+
     CREATE TABLE IF NOT EXISTS users (
       "userId" INTEGER PRIMARY KEY,
       "firstName" TEXT,
