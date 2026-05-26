@@ -165,7 +165,12 @@ export default function OverviewPage() {
       if (from) sp.set("from", from);
       if (to) sp.set("to", to);
 
-      const topUsersP = fetch(`/api/admin/top-users?${sp}`, { signal: ctrl.signal }).then((r) => r.json());
+      const topUsersP = fetch(`/api/admin/top-users?${sp}`, { signal: ctrl.signal }).then(async (r) => {
+        const j = await r.json().catch(() => ({}));
+        // Backend currently returns 500 for some segments (e.g. anonymous) — surface segment context.
+        if (!r.ok) throw new Error(`top-users (segment: ${segment}) returned ${r.status}${j?.error ? ` — ${j.error}` : ""}`);
+        return j;
+      });
       const adoptionP =
         segment === "savameta"
           ? fetch(`/api/savameta/adoption/summary`, { signal: ctrl.signal }).then((r) => {
@@ -177,7 +182,7 @@ export default function OverviewPage() {
       const [topJson, adoptionJson] = await Promise.all([topUsersP, adoptionP]);
       if (ctrl.signal.aborted) return;
 
-      if (!topJson?.success) throw new Error(topJson?.error || "Failed to load top users");
+      if (!topJson?.success) throw new Error(topJson?.error || `Failed to load top users (segment: ${segment})`);
       setUsers(topJson.data?.users ?? []);
 
       if (segment === "savameta") {

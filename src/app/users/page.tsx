@@ -211,9 +211,10 @@ export default function UsersPage() {
         if (from) sp.set("from", from);
         if (to) sp.set("to", to);
         const r = await fetch(`/api/admin/top-users?${sp}`, { signal: ctrl.signal });
-        const j = await r.json();
+        const j = await r.json().catch(() => ({}));
         if (ctrl.signal.aborted) return;
-        if (!j?.success) throw new Error(j?.error || "Failed to load top users");
+        if (!r.ok) throw new Error(`top-users (segment: ${segment}) returned ${r.status}${j?.error ? ` — ${j.error}` : ""}`);
+        if (!j?.success) throw new Error(j?.error || `Failed to load top users (segment: ${segment})`);
         setTopUsers(j.data?.users ?? []);
       } else if (subTab === "joined") {
         setJoinedUsers([]);
