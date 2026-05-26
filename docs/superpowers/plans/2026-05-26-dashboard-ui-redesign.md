@@ -2290,3 +2290,614 @@ git commit --allow-empty -m "qa: pre-delivery checklist pass — emoji/hex/tsc/b
 ## Open Questions
 
 None — all design decisions locked in the spec at `docs/superpowers/specs/2026-05-26-dashboard-ui-redesign-design.md`.
+
+---
+
+# Amendment 1 — Tasks 14R through 24R (2026-05-26, post-Phase-3)
+
+> **Supersedes:** Tasks 14–23 above. Phase 1–3 (Tasks 1–13) remain valid and shipped.
+>
+> **Trigger:** Spec Amendment 1 (`2026-05-26-dashboard-ui-redesign-design.md` § Amendment 1) unified the dashboard into a single product. Original Tasks 14–23 were written against the old "savameta as separate section" architecture and no longer reflect the design.
+>
+> **Backend prerequisite (verified 2026-05-26):** `GET /admin/costs/top-users?segment={all|savameta|external|anonymous}` is deployed on `lumilink-be-feat-read-apis.alex-defikit.workers.dev` and returns correctly filtered users for all 4 segment values.
+
+---
+
+### Task 14R: Extract shared `<SegmentTabs>` + segment type to top-level
+
+**Files:**
+- Create: `src/lib/segment.ts`
+- Create: `src/components/SegmentTabs.tsx` (new location)
+- Modify: `src/components/savameta/SegmentTabs.tsx` (delete after migrations done — Task 23R)
+- Modify: all consumers of old import path (see grep in Step 4)
+
+**Why first:** Tasks 14R–20R all need the shared `<SegmentTabs>`. Extracting it now lets every downstream task import from the canonical path.
+
+- [ ] **Step 1: Create `src/lib/segment.ts` with the shared type**
+
+```ts
+export type Segment = "all" | "savameta" | "external" | "anonymous";
+
+export const SEGMENTS: Segment[] = ["all", "savameta", "external", "anonymous"];
+
+export function isSegment(v: unknown): v is Segment {
+  return typeof v === "string" && (SEGMENTS as string[]).includes(v);
+}
+
+export const SEGMENT_LABELS: Record<Segment, { label: string; hint: string }> = {
+  all: { label: "All", hint: "all signed-in + anonymous" },
+  savameta: { label: "Savameta", hint: "@savameta.com" },
+  external: { label: "External", hint: "personal email, non-anon" },
+  anonymous: { label: "Anonymous", hint: "no login" },
+};
+```
+
+- [ ] **Step 2: Create new `src/components/SegmentTabs.tsx` restyled to new tokens**
+
+```tsx
+"use client";
+
+import { Segment, SEGMENTS, SEGMENT_LABELS } from "@/lib/segment";
+
+type Props = {
+  value: Segment;
+  onChange: (next: Segment) => void;
+};
+
+export default function SegmentTabs({ value, onChange }: Props) {
+  return (
+    <div className="inline-flex bg-surface border border-border-default rounded-lg overflow-hidden">
+      {SEGMENTS.map((seg) => {
+        const active = seg === value;
+        const { label, hint } = SEGMENT_LABELS[seg];
+        return (
+          <button
+            key={seg}
+            type="button"
+            onClick={() => onChange(seg)}
+            title={hint}
+            aria-pressed={active}
+            className={`px-3 py-1.5 text-sm transition-colors ${
+              active
+                ? "bg-primary text-white"
+                : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 3: Update `src/lib/savameta-queries.ts` to import the shared Segment type**
+
+Find:
+```ts
+export type Segment = "all" | "savameta" | "external" | "anonymous";
+export const SEGMENTS: Segment[] = ["all", "savameta", "external", "anonymous"];
+export function isSegment(v: unknown): v is Segment {
+```
+
+Replace with:
+```ts
+import type { Segment } from "@/lib/segment";
+export type { Segment };
+export { SEGMENTS, isSegment } from "@/lib/segment";
+```
+
+- [ ] **Step 4: Grep for old SegmentTabs import path and update**
+
+Run: `rg "from .@/components/savameta/SegmentTabs." src/`
+
+For each match, change:
+```ts
+import SegmentTabs from "@/components/savameta/SegmentTabs";
+```
+to:
+```ts
+import SegmentTabs from "@/components/SegmentTabs";
+```
+
+DO NOT delete `src/components/savameta/SegmentTabs.tsx` yet — that happens in Task 23R after all consumers move.
+
+- [ ] **Step 5: Type check**
+
+Run: `pnpm tsc --noEmit`
+Expected: PASS
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/lib/segment.ts src/components/SegmentTabs.tsx src/lib/savameta-queries.ts src/app/savameta/
+git commit -m "refactor: extract shared SegmentTabs + segment types"
+```
+
+---
+
+### Task 15R: Forward `?segment=` param in Overview proxy route
+
+**Files:**
+- Modify: `src/app/api/admin/top-users/route.ts`
+
+**Why:** Backend now accepts `segment` query param (F1 deployed). The proxy must forward it; otherwise the FE Overview can't filter.
+
+- [ ] **Step 1: Read current proxy route**
+
+Run: `cat src/app/api/admin/top-users/route.ts`
+Confirms it forwards: `sortBy`, `limit`, `from`, `to` — missing `segment`.
+
+- [ ] **Step 2: Add `segment` forwarding**
+
+In `src/app/api/admin/top-users/route.ts`, after the line `const to = sp.get("to");`, add:
+
+```ts
+const segment = sp.get("segment");
+```
+
+And after `if (to) params.set("to", to);`, add:
+
+```ts
+if (segment) params.set("segment", segment);
+```
+
+- [ ] **Step 3: Smoke test with curl (dev server running)**
+
+```bash
+curl -s "http://localhost:3000/api/admin/top-users?segment=savameta&limit=3" | jq '.data.users[].email'
+```
+Expected: only `@savameta.com` emails returned.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/app/api/admin/top-users/route.ts
+git commit -m "feat(api): forward segment param to top-users proxy"
+```
+
+---
+
+### Task 16R: Rewrite Overview page (KPI summary + segment + adoption KPIs)
+
+**Files:**
+- Modify: `src/app/page.tsx`
+- May create: `src/components/AdoptionKpiRow.tsx` (extract if it grows large)
+
+**Spec reference:** Amendment 1 § A1.3.
+
+**Scope discipline (CRITICAL — from past incident):** Do NOT modify any file outside the `Files:` list. If any consumer of `page.tsx` exports or types breaks, report `DONE_WITH_CONCERNS` and stop. Do NOT add `as any`, `// @ts-ignore`, or shim imports.
+
+- [ ] **Step 1: Define the data hook contract**
+
+Inside `src/app/page.tsx` add a `useOverviewData(segment, period)` hook that fetches:
+1. `/api/admin/top-users?segment=<seg>&from=<from>&to=<to>&limit=10` — for KPIs + preview table
+2. When `segment === "savameta"`: `/api/savameta/adoption/summary` — for adoption KPI row
+
+Both fetches happen in parallel via `Promise.all`. Returns `{ kpis, preview, adoption | null, loading, error }`.
+
+- [ ] **Step 2: Replace page body — structure**
+
+```tsx
+<div className="space-y-6">
+  <PageHeader title="Overview" subtitle={`${SEGMENT_LABELS[segment].label} · ${periodLabel}`}>
+    <PeriodChip value={period} onChange={setPeriod} />
+    <RefreshButton onClick={refresh} loading={loading} />
+  </PageHeader>
+
+  <div className="flex flex-wrap items-center gap-3">
+    <SegmentTabs value={segment} onChange={setSegment} />
+  </div>
+
+  {/* Primary KPI row (always 4 cards) */}
+  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <StatCard label="Active Users"  value={fmtInt(kpis.activeUsers)}     loading={loading} icon={<Users />} />
+    <StatCard label="Total Tokens"  value={fmtInt(kpis.totalTokens)}     loading={loading} icon={<Coins />} />
+    <StatCard label="Total Cost"    value={fmtUsd(kpis.totalCostUsd)}    loading={loading} tone="warning" icon={<DollarSign />} />
+    <StatCard label="Avg / User"    value={fmtUsd(kpis.avgCostPerUser)}  loading={loading} hint="per active user" />
+  </div>
+
+  {/* Adoption KPI row — only when savameta */}
+  {segment === "savameta" && (
+    <AdoptionKpiRow data={adoption} loading={loading} />
+  )}
+
+  {/* Top users preview */}
+  <Card>
+    <CardHeader title="Top Users" right={<Link href="/users">View all →</Link>} />
+    <ResponsiveTable columns={topUserCols} rows={preview} loading={loading} />
+  </Card>
+</div>
+```
+
+- [ ] **Step 3: Implement `AdoptionKpiRow` (inline or `src/components/AdoptionKpiRow.tsx`)**
+
+```tsx
+function AdoptionKpiRow({ data, loading }: { data: AdoptionSummary | null; loading: boolean }) {
+  if (!loading && data && data.totalEligible === 0) {
+    return (
+      <EmptyState
+        icon={<UserPlus />}
+        title="Roster is empty"
+        description="Import employees in Settings → Roster to enable adoption metrics."
+        action={<Link href="/settings/roster">Open Roster</Link>}
+      />
+    );
+  }
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <StatCard label="Total Eligible" value={fmtInt(data?.totalEligible)} loading={loading} />
+      <StatCard label="Joined"         value={fmtInt(data?.joined)}        loading={loading} tone="success" />
+      <StatCard label="Not Joined"     value={fmtInt(data?.notJoined)}     loading={loading} tone="danger" />
+      <StatCard label="Adoption Rate"  value={data ? `${(data.adoptionRate*100).toFixed(1)}%` : "—"} loading={loading} tone="success" />
+    </div>
+  );
+}
+```
+
+- [ ] **Step 4: Delete legacy code in `page.tsx`**
+
+Remove: `DateRangePicker` import + usage, `progress` state + progress bar, old refresh button with orange bg, the inline `<table>` with 8 columns + 🥇🥈🥉 emoji, old `setSortBy` state (sort lives on `/users` now).
+
+Keep: auto-refresh timer logic (countdown chip).
+
+- [ ] **Step 5: Manual smoke test (dev server)**
+
+Run: `pnpm dev` then open `http://localhost:3000`.
+
+Check:
+- Default segment loads `all` → all KPI cards filled.
+- Switch to `savameta` → adoption row appears with 4 cards.
+- Switch to `external` → adoption row gone.
+- Switch to `anonymous` → adoption row gone; preview table shows `@anon.lumilink` emails.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/app/page.tsx src/components/AdoptionKpiRow.tsx
+git commit -m "feat(overview): segment-aware KPIs + conditional adoption row"
+```
+
+---
+
+### Task 17R: Rewrite `/users` page (full Top-N table + sub-tabs for savameta)
+
+**Files:**
+- Modify: `src/app/users/page.tsx`
+
+**Spec reference:** Amendment 1 § A1.4.
+
+**Scope discipline:** Only modify `src/app/users/page.tsx`. Do NOT touch `/users/[userId]/page.tsx`.
+
+- [ ] **Step 1: Replace the 17-line stub with full structure**
+
+```tsx
+"use client";
+import { useState } from "react";
+import SegmentTabs from "@/components/SegmentTabs";
+import PeriodChip from "@/components/PeriodChip";
+import ResponsiveTable from "@/components/ResponsiveTable";
+import type { Segment } from "@/lib/segment";
+
+type SubTab = "top" | "joined" | "never";
+
+export default function UsersPage() {
+  const [segment, setSegment] = useState<Segment>("all");
+  const [period, setPeriod] = useState<string>("30d");
+  const [subTab, setSubTab] = useState<SubTab>("top");
+
+  // ...fetch + render
+}
+```
+
+- [ ] **Step 2: Sub-tabs only render when `segment === "savameta"`**
+
+```tsx
+{segment === "savameta" && (
+  <div className="inline-flex rounded-lg border border-border-default overflow-hidden">
+    {(["top","joined","never"] as SubTab[]).map((t) => (
+      <button key={t} onClick={() => setSubTab(t)}
+        className={subTab===t ? "bg-primary text-white px-3 py-1.5" : "bg-surface px-3 py-1.5"}>
+        {t === "top" ? "Top usage" : t === "joined" ? "Joined" : "Never joined"}
+      </button>
+    ))}
+  </div>
+)}
+{segment !== "savameta" && setSubTab("top")}  // implicit
+```
+
+- [ ] **Step 3: Wire data sources per subTab**
+
+- `top` → `/api/admin/top-users?segment=<seg>&limit=100`
+- `joined` → `/api/savameta/adoption/joined` (savameta only)
+- `never` → `/api/savameta/adoption/never-joined` (savameta only)
+
+- [ ] **Step 4: Render via `ResponsiveTable` (mobile becomes card list)**
+
+Columns differ per subTab. Define 3 column sets.
+
+- [ ] **Step 5: Manual smoke test**
+
+- `all`/`external`/`anonymous` segments: only Top usage subtab visible.
+- `savameta` segment: 3 sub-tabs visible, Joined + Never joined load from adoption endpoints.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/app/users/page.tsx
+git commit -m "feat(users): full top-N table + savameta sub-tabs"
+```
+
+---
+
+### Task 18R: Restyle Engagement page (+ move path `/savameta/engagement` → `/engagement`)
+
+**Files:**
+- Create: `src/app/engagement/page.tsx` (copy from `/savameta/engagement/page.tsx` with restyle)
+- Modify: imports from old `savameta/SegmentTabs` path → new path
+
+**Spec reference:** Amendment 1 § A1.5 + Section 5 (universal pattern, still valid).
+
+- [ ] **Step 1: Copy file to new location**
+
+```bash
+mkdir -p src/app/engagement
+cp src/app/savameta/engagement/page.tsx src/app/engagement/page.tsx
+```
+
+- [ ] **Step 2: Apply Section 5 pattern**
+
+- Replace `bg-slate-*` with semantic tokens (`bg-surface`, `bg-surface-2`, `border-default`).
+- Replace any `StatCard` from savameta-local with shared `@/components/StatCard`.
+- Replace `Loading...` text with `<Skeleton>` primitives.
+- Replace "BA chưa define" amber chips with `<EmptyState>`.
+
+- [ ] **Step 3: Update SegmentTabs import to new path**
+
+- [ ] **Step 4: Manual smoke test at `/engagement`**
+
+- [ ] **Step 5: Commit (DON'T delete old `/savameta/engagement` yet — wait for Task 23R redirects)**
+
+```bash
+git add src/app/engagement/
+git commit -m "feat(engagement): move to /engagement + restyle"
+```
+
+---
+
+### Task 19R: Restyle Activity page (move `/savameta/activity` → `/activity`)
+
+Same shape as Task 18R. Apply pattern. Commit.
+
+---
+
+### Task 20R: Restyle Lifecycle page (move `/savameta/lifecycle` → `/lifecycle`)
+
+Same shape as Task 18R. Apply pattern. Commit.
+
+---
+
+### Task 21R: Restyle Triggers page (move `/savameta/triggers` → `/triggers`)
+
+Same shape as Task 18R + BA-chưa-define EmptyState (per spec Section 5). Commit.
+
+---
+
+### Task 22R: Rewrite Sidebar — single DASHBOARD section + remove `/users` duplicate
+
+**Files:**
+- Modify: `src/components/Sidebar.tsx`
+
+**Spec reference:** Amendment 1 § A1.2.
+
+- [ ] **Step 1: Replace `sections` array**
+
+```ts
+const sections: NavSection[] = [
+  {
+    title: "DASHBOARD",
+    items: [
+      { href: "/",            label: "Overview",   Icon: Home },
+      { href: "/users",       label: "Users",      Icon: Users },
+      { href: "/activity",    label: "Activity",   Icon: Activity },
+      { href: "/engagement",  label: "Engagement", Icon: Zap },
+      { href: "/lifecycle",   label: "Lifecycle",  Icon: RotateCcw },
+      { href: "/triggers",    label: "Triggers",   Icon: Bell },
+    ],
+  },
+  {
+    title: "SETTINGS",
+    items: [
+      { href: "/settings/roster",   label: "Roster",       Icon: Users },
+      { href: "/settings/releases", label: "Releases",     Icon: Tag },
+      { href: "/settings",          label: "Sync Status",  Icon: Settings },
+      { href: "/admin/settings",    label: "Admin",        Icon: Shield },
+    ],
+  },
+];
+```
+
+(Confirm icon names exist in `lucide-react`: `Bell`, `Shield`. If not, swap.)
+
+- [ ] **Step 2: Manual smoke test**
+
+Verify active state highlights correctly when navigating `/activity`, `/engagement`, etc.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/components/Sidebar.tsx
+git commit -m "feat(sidebar): unify into single DASHBOARD section"
+```
+
+---
+
+### Task 23R: Redirects for old `/savameta/*` URLs + delete legacy folders + delete old SegmentTabs
+
+**Files:**
+- Modify: `next.config.js`
+- Delete: `src/app/savameta/` (entire folder)
+- Delete: `src/components/savameta/SegmentTabs.tsx`
+- Delete: `src/components/savameta/StatCard.tsx` (if still present — was supposed to be deleted in original Task 21)
+- Delete: `src/components/StatCardLegacy.tsx` after re-pointing 2 consumers (`src/app/users/[userId]/page.tsx`, `src/app/sessions/[sessionId]/page.tsx`) to shared `StatCard`
+
+- [ ] **Step 1: Add redirects in `next.config.js`**
+
+```js
+async redirects() {
+  return [
+    { source: "/savameta/adoption",   destination: "/?segment=savameta", permanent: true },
+    { source: "/savameta/engagement", destination: "/engagement",        permanent: true },
+    { source: "/savameta/activity",   destination: "/activity",          permanent: true },
+    { source: "/savameta/lifecycle",  destination: "/lifecycle",         permanent: true },
+    { source: "/savameta/triggers",   destination: "/triggers",          permanent: true },
+  ];
+}
+```
+
+- [ ] **Step 2: Re-point StatCardLegacy consumers to shared StatCard**
+
+In both `src/app/users/[userId]/page.tsx` and `src/app/sessions/[sessionId]/page.tsx`:
+```ts
+import StatCard from "@/components/StatCardLegacy";
+```
+→
+```ts
+import StatCard from "@/components/StatCard";
+```
+
+Then verify `pnpm tsc --noEmit` passes. The new `StatCard` accepts a superset of props — old `accent` prop is gone, need to map: `accent="indigo"` → `tone="default"`, `accent="emerald"` → `tone="success"`, `accent="amber"` → `tone="warning"`, `accent="red"` → `tone="danger"`.
+
+- [ ] **Step 3: Delete legacy files**
+
+```bash
+rm -rf src/app/savameta/
+rm -f src/components/savameta/SegmentTabs.tsx
+rm -f src/components/savameta/StatCard.tsx
+rm -f src/components/StatCardLegacy.tsx
+rmdir src/components/savameta 2>/dev/null || true
+```
+
+- [ ] **Step 4: Smoke test redirects (dev server)**
+
+```bash
+curl -sI http://localhost:3000/savameta/engagement | head -3
+```
+Expected: `HTTP/1.1 308 Permanent Redirect` with `Location: /engagement`.
+
+- [ ] **Step 5: Type check + build**
+
+```bash
+pnpm tsc --noEmit
+pnpm build
+```
+Both must PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add -A
+git commit -m "chore: redirect savameta/* + delete legacy files"
+```
+
+---
+
+### Task 24R: Roster grouping by department (accordion)
+
+**Files:**
+- Modify: `src/app/settings/roster/page.tsx`
+
+**Spec reference:** Amendment 1 § A1.6.
+
+**Scope discipline:** Only modify `roster/page.tsx`. Do NOT touch the API route.
+
+- [ ] **Step 1: Group rows client-side after fetch**
+
+```ts
+function groupByDepartment(rows: RosterEntry[]): Map<string, RosterEntry[]> {
+  const groups = new Map<string, RosterEntry[]>();
+  for (const r of rows) {
+    const key = r.department?.trim() || "Unassigned";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(r);
+  }
+  // Sort alphabetically; Unassigned last
+  return new Map(
+    [...groups.entries()].sort(([a], [b]) => {
+      if (a === "Unassigned") return 1;
+      if (b === "Unassigned") return -1;
+      return a.localeCompare(b);
+    })
+  );
+}
+```
+
+- [ ] **Step 2: Render each group as `<details>` accordion**
+
+```tsx
+{[...groups.entries()].map(([dept, members]) => (
+  <details key={dept} open={dept !== "Unassigned"} className="bg-surface border border-border-default rounded-lg">
+    <summary className="px-4 py-3 cursor-pointer flex items-center gap-2 text-text-primary font-medium">
+      <ChevronRight className="w-4 h-4 transition-transform [details[open]_&]:rotate-90" />
+      {dept}
+      <span className="text-text-muted text-sm">({members.length})</span>
+    </summary>
+    <table className="w-full text-sm">
+      <thead>
+        <tr><th>Email</th><th>Full Name</th><th>Source</th><th>Added</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {members.map((r) => <RosterRow key={r.email} row={r} onDelete={handleDelete} />)}
+      </tbody>
+    </table>
+  </details>
+))}
+```
+
+(Remove the Department column from the table — it's the grouping key.)
+
+- [ ] **Step 3: Search behavior**
+
+When `search` is non-empty:
+- Filter rows BEFORE grouping.
+- Auto-expand all groups that have ≥1 matching row.
+- Hide groups with 0 matches.
+
+- [ ] **Step 4: Manual smoke test**
+
+- With 80 employees across 5 departments → 5 accordion sections.
+- Click a section → collapses.
+- Search "tamnt" → only the matching department expands, others hide.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/app/settings/roster/page.tsx
+git commit -m "feat(roster): group by department with accordion"
+```
+
+---
+
+### Task 25R: Final QA sweep
+
+**Files:** none modified; checklist execution.
+
+Run through Pre-Delivery Checklist (original spec § Pre-Delivery Checklist) plus:
+
+- [ ] Visit `/` with each segment — no console errors, KPIs change, preview updates.
+- [ ] Visit `/users` with each segment — sub-tabs visible only for `savameta`.
+- [ ] Visit `/activity`, `/engagement`, `/lifecycle`, `/triggers` — all load.
+- [ ] Visit `/savameta/engagement` — redirects to `/engagement`.
+- [ ] Visit `/settings/roster` — accordion grouping works, search filters per group.
+- [ ] Mobile (375px): sidebar drawer opens, KPIs stack 2-up, tables → card list.
+- [ ] Tablet (768px): sidebar rail with tooltip, KPIs 4-up.
+- [ ] `pnpm tsc --noEmit` clean.
+- [ ] `pnpm build` clean.
+- [ ] No remaining imports from `@/components/savameta/` (run `rg "@/components/savameta"` — should be empty).
+
+Mark this task complete only after all 10 boxes pass.
+
+---
+
+**End of Amendment 1.** All work from Task 14R onward replaces original Tasks 14–23.

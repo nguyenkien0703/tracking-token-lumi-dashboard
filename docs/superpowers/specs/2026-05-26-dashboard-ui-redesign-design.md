@@ -329,3 +329,172 @@ From `ui-ux-pro-max` skill (skill output 2026-05-26) + project-specific:
 ## Open Questions
 
 None — all sections approved by user in brainstorming session 2026-05-26.
+
+---
+
+# Amendment 1 — Unified Information Architecture (2026-05-26, post-Phase-3)
+
+**Status:** Supersedes Sections 4, 5, and parts of the Component Inventory above.
+**Trigger:** After Phase 3 (responsive shell) shipped, user asked to merge the "cost tracking" and "Savameta adoption" universes into a single product. Sidebar currently advertises them as two products under separate section headers ("COST TRACKING" / "SAVAMETA ADOPTION") — that boundary is artificial because every metric is just a different view of the same `history_entries` + `users` data, sliced by user segment.
+
+## A1.1 — Goal restated
+
+`tracking-token-lumi-dashboard` is **one product**: **Lumi Token Analytics**. It serves both:
+- **Engineering / Finance:** "where is the LLM spend going?"
+- **HR / Adoption owners:** "are Savameta employees actually using it?"
+
+Both audiences read the same underlying data; the segment filter (`all` / `savameta` / `external` / `anonymous`) is the lens, not a product boundary.
+
+## A1.2 — Sidebar (replaces "COST TRACKING" + "SAVAMETA ADOPTION" sections)
+
+New structure (single "DASHBOARD" section, plus SETTINGS):
+
+```
+DASHBOARD
+  Overview            ← KPI summary (segment-aware) + Top-N preview
+  Users               ← full Top-N table with SegmentTabs (was: Overview's table)
+  Activity            ← daily trends (segment-aware)         [moved from /savameta/activity]
+  Engagement          ← quality metrics (segment-aware)      [moved from /savameta/engagement]
+  Lifecycle           ← buckets (segment-aware)              [moved from /savameta/lifecycle]
+  Triggers            ← returning + first-value (segment-aware) [moved from /savameta/triggers]
+
+SETTINGS
+  Roster              ← grouped by department (was flat list)
+  Releases
+  Sync Status
+  Admin
+```
+
+### What's removed from the sidebar
+
+- **`/users`** (the User Lookup search page) — duplicate of the search box already on Overview. Search remains; the dedicated page goes away. `/users/[userId]` drill-down stays.
+- **`/savameta/adoption`** — the four adoption KPIs (Total Eligible, Joined, Not Joined, Adoption Rate) are folded into Overview as additional KPI cards that appear only when `segment === "savameta"` and there is a non-empty roster. The `joined` / `never-joined` user lists move to the new `Users` page as a subview/tab.
+
+### What's renamed / moved
+
+- `/savameta/activity` → `/activity`
+- `/savameta/engagement` → `/engagement`
+- `/savameta/lifecycle` → `/lifecycle`
+- `/savameta/triggers` → `/triggers`
+
+Old URLs return HTTP redirects (Next.js `redirect()` in a `route.ts` or `next.config.js` `redirects`) so existing bookmarks/Slack links don't 404.
+
+## A1.3 — Segment-aware Overview (replaces Section 4)
+
+### Backend contract confirmed (verified 2026-05-26)
+
+Endpoint: `GET /admin/costs/top-users?segment={all|savameta|external|anonymous}&limit=...&from=...&to=...`
+- Backward compat: `segment` defaults to `all`.
+- Tested all 4 segment values against deployed backend (`lumilink-be-feat-read-apis.alex-defikit.workers.dev`) — returned correctly filtered users in each case.
+- Reference: `docs/2026-05-26-lumilink-be-api-gaps-for-dashboard.md` § F1.
+
+### Structure (top to bottom)
+
+1. **Page header** — title `Overview` + subtitle `{segment label} · {period label}` · Refresh CTA + period chip on right.
+2. **Segment + Period bar** — `<SegmentTabs>` (All / Savameta / External / Anonymous) on left, `<PeriodChip>` on right. Selection drives all data below.
+3. **Primary KPI row (4 cards, always shown)**
+   - Active Users (in selected segment + period)
+   - Total Tokens
+   - Total Cost (warning tone)
+   - Avg / User (`totalCost / activeUsers`)
+4. **Adoption KPI row (4 cards, shown only when `segment === "savameta"`)**
+   - Total Eligible (from roster size)
+   - Joined
+   - Not Joined (danger tone)
+   - Adoption Rate (success tone, percentage)
+   - Data source: existing `/api/savameta/adoption/summary` route (already segment-aware = savameta-only by definition).
+5. **Top-N preview table** — first 10 rows of `/admin/costs/top-users`, with a "View all →" link to `/users`.
+6. **Footer hint** — auto-refresh countdown chip (existing behaviour).
+
+### Empty / loading / error
+
+- Loading: all KPI cards render their skeleton variant; preview table renders 5 skeleton rows.
+- Adoption row in non-`savameta` segment: simply not rendered (no placeholder).
+- Empty roster (savameta + 0 roster entries): adoption row shows `EmptyState` card spanning 4 columns: "Roster is empty — import employees in Settings → Roster".
+
+## A1.4 — Users page (new, replaces "Top users table" on old Overview)
+
+`src/app/users/page.tsx` is rewritten (current 17-line `<UserSearch expanded />` is deleted).
+
+### Structure
+
+1. **Header** — title `Users` + subtitle.
+2. **Filter bar** — SegmentTabs · PeriodChip · sort dropdown (Cost / Tokens / Requests / Last Active) · search input.
+3. **Sub-tabs** (only when `segment === "savameta"`):
+   - `Top usage` (default) — current Top-N table
+   - `Joined` — list of roster employees who joined (`/api/savameta/adoption/joined`)
+   - `Never joined` — roster employees with no activity (`/api/savameta/adoption/never-joined`)
+4. **Data table** (`ResponsiveTable`) — desktop table / mobile card list.
+
+### Why sub-tabs are inside Users (not as separate sidebar entries)
+
+Adoption joined/not-joined are a Savameta-specific slice of "users". Promoting them to top-level sidebar items would re-introduce the segment-as-product confusion this amendment is removing. They live as sub-tabs only when the segment context is `savameta`.
+
+## A1.5 — Pages 17-20 (segment-aware page pattern, unchanged structure but new paths)
+
+Section 5's "Universal Pattern" still applies to Activity / Engagement / Lifecycle / Triggers. Only changes:
+- File paths: `src/app/{activity,engagement,lifecycle,triggers}/page.tsx` (not `/savameta/*`).
+- All four already use `<SegmentTabs>` and segment-aware queries (`savameta-queries.ts`) — no logic change needed, just path + restyle.
+
+## A1.6 — Roster grouping (Settings → Roster)
+
+Replaces the flat sortable table with an **accordion grouped by department**.
+
+### Structure
+
+- Top bar: search input (filters across all groups) + total count + Import buttons (unchanged).
+- For each department (sorted alphabetically):
+  - `<details open>` accordion section.
+  - Summary row: `▾ Department name  (N employees)`.
+  - Body: same table columns (Email / Full Name / Source / Added / Actions) — Department column removed (it's the grouping key).
+- Trailing group: `Unassigned` (rows where `department IS NULL`) — collapsed by default.
+
+### Why Option A (accordion) over Option B (rowspan grouped table)
+
+- Easier to skim with 10+ departments and 80+ employees.
+- Collapsing irrelevant departments reduces visual noise.
+- Search still works — filter at the row level, expand all matching groups, hide groups with 0 matches.
+- Accessible by default via native `<details>` element.
+
+### Data
+
+No API changes — `/api/savameta/roster` already returns `department` field. Grouping happens client-side after fetch (small dataset, ~80 rows).
+
+## A1.7 — Component inventory delta
+
+Additions on top of original inventory:
+
+| File | Change |
+|---|---|
+| `src/components/SegmentTabs.tsx` | Move from `src/components/savameta/SegmentTabs.tsx` to `src/components/SegmentTabs.tsx` (shared across pages now). Restyle to new tokens. |
+| `src/app/users/page.tsx` | Rewrite — full Top-N table + sub-tabs (was: `<UserSearch expanded />`) |
+| `src/app/activity/page.tsx` | New path; copy from `src/app/savameta/activity/page.tsx` with restyle |
+| `src/app/engagement/page.tsx` | Same |
+| `src/app/lifecycle/page.tsx` | Same |
+| `src/app/triggers/page.tsx` | Same |
+| `src/app/savameta/*` | Delete after redirects in place |
+| `src/app/settings/roster/page.tsx` | Add department grouping (accordion layout) |
+| `next.config.js` (or new `src/app/savameta/[...slug]/page.tsx`) | Add redirects: `/savameta/activity` → `/activity`, etc. |
+| `src/app/api/admin/top-users/route.ts` | Forward new `segment` query param to backend |
+
+Removals:
+
+| File | Reason |
+|---|---|
+| `src/app/savameta/adoption/page.tsx` | Folded into Overview as conditional KPI row + Users sub-tabs |
+| `src/components/savameta/SegmentTabs.tsx` | Moved to shared location |
+| (existing) old `/users` content | Replaced (not removed — file rewritten) |
+
+## A1.8 — Constraints reaffirmed
+
+- No new API endpoints — Amendment 1 uses only `?segment=` (already deployed) + existing savameta endpoints.
+- Adoption page disappears entirely as a route. Existing `/savameta/adoption` redirects to `/?segment=savameta`.
+- All segment definitions live in **one place** (`src/lib/segment.ts` — extracted from `savameta-queries.ts`) so the FE label and BE filter stay in sync.
+
+## A1.9 — Open questions in this amendment
+
+None — user approved Option 3 (sidebar) + Option A (roster) + folding adoption into Overview.
+
+---
+
+**End of Amendment 1.** Sections 4 and 5 above are superseded by A1.3–A1.6. Section 2 (Layout/responsive), Section 3 (StatCard), and Section 1 (Visual Language) still apply as-is.
