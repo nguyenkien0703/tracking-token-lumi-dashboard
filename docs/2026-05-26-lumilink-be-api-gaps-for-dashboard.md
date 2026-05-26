@@ -15,10 +15,25 @@ Sau khi audit 6 endpoint hiện có, raw data **gần như đầy đủ**. Còn 
 
 | # | Gap | Severity | Endpoint ảnh hưởng |
 |---|-----|----------|---------------------|
-| F1 | Không filter được theo **email domain** | Medium | `/admin/costs/top-users` |
-| F2 | Không filter được theo **userId list** (IN array) | High | `/api/v1/normal-mode/costs/history` |
+| F1 | Không filter được theo **user segment** (savameta / external / anonymous / all) | High | `/admin/costs/top-users` |
+| F2 | Cùng vấn đề segment filter | High | `/api/v1/normal-mode/costs/history` |
 
 Ngoài ra 1 vấn đề data integrity (M1) liên quan đến `messageId` overflow ở endpoint messages.
+
+---
+
+## 1.5. User segments (cốt lõi cho F1)
+
+Hệ thống có **3 loại user**, dashboard cần xem cả 3 (qua tab `[All] [Savameta] [External] [Anonymous]` trên Lifecycle / Engagement / Activity / Triggers):
+
+| Segment | Định nghĩa SQL | Use case |
+|---------|---------------|----------|
+| `savameta` | `LOWER(email) LIKE '%@savameta.com'` | 80 nhân sự internal — track adoption HR |
+| `external` | có email, NOT savameta, NOT anonymous (`email NOT LIKE '%@anon.lumilink' AND email NOT LIKE '%@savameta.com'`) | User cá nhân (Gmail, doanh nghiệp khác) — track ROI external |
+| `anonymous` | `email LIKE '%@anon.lumilink'` | Người chat không login (Google OAuth chưa setup hoặc skip) |
+| `all` | union 3 segment trên | Tổng quan |
+
+**Lưu ý**: hệ thống login bằng Google OAuth → user đã login chắc chắn có email. `loginType = 'anonymous'` và email pattern `@anon.lumilink` là dấu hiệu user chưa login.
 
 ---
 
@@ -61,61 +76,95 @@ Với 6 endpoint trên dashboard đã có đủ raw để compute mọi metric:
 
 ## 4. Gap chi tiết
 
-### F1. `/admin/costs/top-users` không filter theo `emailDomain`
+### F1. `/admin/costs/top-users` không filter theo segment
 
 #### Vấn đề
 
-Dashboard muốn lấy "top users là `@savameta.com`". Endpoint hiện trả top N theo cost, trong đó user external (gmail, ...) chiếm chỗ. Phải set `limit=500` rồi filter client → tốn bandwidth + slow.
+Dashboard cần xem **mỗi segment** (savameta / external / anonymous / all) trong từng tab. Endpoint hiện trả top N gộp tất cả → phải set `limit=500` rồi filter client → tốn bandwidth + sai pagination (top 100 sau khi filter ≠ filter rồi top 100).
 
 #### Đề xuất
 
-Thêm 2 query param:
+Thêm 1 query param **`segment`** với 4 giá trị enum:
 
 | Param | Type | Default | Notes |
 |-------|------|---------|-------|
-| `emailDomain` | string (domain regex) | — | Filter `email LIKE '%@<domain>'` |
-| `excludeAnonymous` | boolean | `false` | Filter `loginType != 'anonymous'` (hoặc `email NOT LIKE '%@anon.lumilink'`) |
+| `segment` | enum: `all` / `savameta` / `external` / `anonymous` | `all` | Filter user ở DB level trước khi sort + paginate |
 
-**Logic order:** filter user IDs at DB level **BEFORE** sort + paginate. Spec PR #5170 đã đề xuất đúng pattern này — chỉ cần giữ phần filter, **bỏ phần compute lastActiveAt** (vì dashboard tự derive từ #3).
+**SQL logic theo segment:**
 
-**Backward compat**: thêm param optional, không phá caller hiện tại (Lumi Token dashboard).
+```sql
+-- segment=savameta
+WHERE LOWER(u.email) LIKE '%@savameta.com'
+
+-- segment=external
+WHERE u.email NOT LIKE '%@anon.lumilink'
+  AND u.email NOT LIKE '%@savameta.com'
+  AND u.email IS NOT NULL
+
+-- segment=anonymous
+WHERE u.email LIKE '%@anon.lumilink'
+
+-- segment=all (no filter)
+```
+
+**Lý do dùng `segment` enum thay vì `emailDomain` + `excludeAnonymous`:**
+
+- Semantics rõ ràng — dashboard chỉ cần 1 param thay vì combine 2-3 param.
+- BE control định nghĩa segment ở 1 chỗ (constants), không phải caller tự ghép regex.
+- Dễ thay đổi nếu sau này muốn redefine (ví dụ thêm domain whitelist cho "internal").
+
+**Logic order:** filter user IDs at DB level **BEFORE** sort + paginate.
+
+**Backward compat**: param optional với default `all` → caller cũ (Lumi Token dashboard) không đổi behavior.
+
+**Optional advanced**: nếu muốn flexibility cao hơn, vẫn có thể thêm `emailDomain` query param cho use case "Savameta sau này có domain khác". Nhưng em recommend làm `segment` trước, advanced sau khi cần.
 
 ---
 
-### F2. `/api/v1/normal-mode/costs/history` không filter theo `userIds[]`
+### F2. `/api/v1/normal-mode/costs/history` không filter theo segment
 
 #### Vấn đề
 
-Dashboard muốn refresh raw history cho **80 Savameta users**. Endpoint hiện chỉ có `userId` (single) hoặc không filter → phải:
+Dashboard muốn refresh raw history **theo từng segment** (để mỗi tab Engagement/Activity/Triggers tính số riêng). Endpoint hiện chỉ có `userId` (single) hoặc không filter → phải:
 
-- **Option A**: gọi 80 lần `?userId={id}` → N+1 fetch
-- **Option B**: gọi 1 lần không filter → fetch toàn bộ 2237 entries gồm external users → filter client (tốn bandwidth)
-
-Cả 2 đều tệ. Đặc biệt khi external users sẽ scale lên hàng nghìn — Option B chết.
+- **Option A**: gọi N lần `?userId={id}` cho mỗi user trong segment → N+1 fetch, chậm.
+- **Option B**: gọi 1 lần không filter → fetch toàn bộ entries gồm cả 3 loại → filter client. Tốn bandwidth, scale kém khi external user lên hàng nghìn.
 
 #### Đề xuất
 
-Cho phép **multiple userIds** trong 1 request:
+Thêm **cùng `segment` enum** như F1:
 
-**Option preferred — repeat query param:**
-```
-GET /api/v1/normal-mode/costs/history?userId=8&userId=20&userId=42&from=2026-05-01&limit=1000
-```
+| Param | Type | Default | Notes |
+|-------|------|---------|-------|
+| `segment` | enum: `all` / `savameta` / `external` / `anonymous` | `all` | Filter theo user pool, áp dụng cùng logic SQL như F1 |
 
-**Hoặc — POST với body để vượt qua URL length limit (80+ userId):**
-```http
-POST /api/v1/normal-mode/costs/history/search
-{
-  "userIds": [8, 20, 42, ...],
-  "from": "2026-05-01",
-  "limit": 1000,
-  "offset": 0
-}
+**Request example:**
+```
+GET /api/v1/normal-mode/costs/history?segment=savameta&from=2026-05-01&limit=1000
+GET /api/v1/normal-mode/costs/history?segment=external&limit=1000
+GET /api/v1/normal-mode/costs/history?segment=anonymous&limit=1000
 ```
 
-Em recommend **POST search variant** — clean hơn, không lo URL length, tiền lệ ở `/admin/users/join-status` PR #5170 đã có pattern body.
+**SQL pseudo:**
+```sql
+SELECT h.* FROM history_entries h
+JOIN users u ON u.id = h."userId"
+WHERE
+  CASE :segment
+    WHEN 'savameta' THEN LOWER(u.email) LIKE '%@savameta.com'
+    WHEN 'external' THEN u.email NOT LIKE '%@anon.lumilink' AND u.email NOT LIKE '%@savameta.com' AND u.email IS NOT NULL
+    WHEN 'anonymous' THEN u.email LIKE '%@anon.lumilink'
+    ELSE TRUE
+  END
+ORDER BY h."createdAt" DESC
+LIMIT :limit OFFSET :offset
+```
+
+**Backward compat**: `segment` optional, default `all` — không phá caller hiện tại.
 
 **Response shape**: giữ nguyên (entries + total + pagination). Không cần thêm field.
+
+**Optional**: vẫn giữ `userId` single param hiện tại (cho use case drill-down 1 user). `segment` và `userId` mutually exclusive — nếu cả 2 truyền cùng lúc, ưu tiên `userId` và ignore `segment`.
 
 ---
 
@@ -168,8 +217,8 @@ Spec PR #5170 đang định build mấy thứ sau — em đề xuất **bỏ** v
 
 ### Bắt buộc (HIGH)
 
-- [ ] **F2**: Cho phép multiple userIds trong `/costs/history` (POST search variant preferred).
-- [ ] **F1**: Thêm `emailDomain` + `excludeAnonymous` filter cho `/admin/costs/top-users`.
+- [ ] **F1**: Thêm `segment` enum param (`all` / `savameta` / `external` / `anonymous`) cho `/admin/costs/top-users`.
+- [ ] **F2**: Thêm cùng `segment` enum param cho `/api/v1/normal-mode/costs/history`. Định nghĩa SQL của segment phải khớp F1 (share constant ở backend).
 
 ### Nên có (MEDIUM)
 
@@ -183,7 +232,8 @@ Spec PR #5170 đang định build mấy thứ sau — em đề xuất **bỏ** v
 
 ## 8. Open questions
 
-- [ ] Confirm rằng cách filter ở F1 chỉ dùng cho `top-users` endpoint, không phá tương thích Lumi Token dashboard hiện đang dùng.
-- [ ] F2: ưu tiên POST search variant hay repeat query param?
+- [ ] Định nghĩa segment `external` — cần exclude thêm domain nào ngoài `@savameta.com` không? (Ví dụ: nếu Defikit có domain riêng `@defikit.net` thì có gom vào "savameta-internal" không, hay coi là external?)
+- [ ] Segment definition nên hardcode ở backend (rõ ràng, dễ control) hay configurable qua env var?
 - [ ] M1: `role` được set null vì đâu — Prisma schema cho phép, hay logic backend chưa fill?
 - [ ] Có nên thêm `?sinceCreatedAt={ISO}` cho `/costs/history` để dashboard refresh incremental (chỉ fetch entries mới) thay vì refetch full mỗi sync?
+- [ ] Có thể anonymous user **upgrade** lên có email (login Google sau khi chat) không? Nếu có, segment của họ thay đổi giữa các thời điểm — `userId` cũ sẽ xuất hiện ở 2 segment khác nhau qua time. Dashboard cần biết để xử lý.
