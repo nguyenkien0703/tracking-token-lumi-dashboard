@@ -20,6 +20,10 @@ type ImportResult = {
   skipped: { email: string; reason: string }[];
 };
 
+function deptSlug(key: string): string {
+  return key.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9_-]/g, "") || "unnamed";
+}
+
 const rosterCols: Column<RosterEntry>[] = [
   {
     key: "email",
@@ -152,21 +156,23 @@ export default function RosterSettingsPage() {
 
     const entries = emails.map((email) => ({ email }));
 
-    const res = await fetch("/api/savameta/roster", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entries, source: "textarea" }),
-    });
-
-    const json = await res.json();
-    if (!res.ok) {
-      setError(json.error ?? "Import failed");
-      return;
+    try {
+      const res = await fetch("/api/savameta/roster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries, source: "textarea" }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? "Import failed");
+        return;
+      }
+      setImportResult(json);
+      setPasteText("");
+      fetchRoster(search);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error during import");
     }
-
-    setImportResult(json);
-    setPasteText("");
-    fetchRoster(search);
   };
 
   const handleCsvUpload = async (file: File) => {
@@ -199,28 +205,40 @@ export default function RosterSettingsPage() {
       };
     });
 
-    const res = await fetch("/api/savameta/roster", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entries, source: "csv_upload" }),
-    });
-
-    const json = await res.json();
-    if (!res.ok) {
-      setError(json.error ?? "CSV import failed");
-      return;
+    try {
+      const res = await fetch("/api/savameta/roster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries, source: "csv_upload" }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? "CSV import failed");
+        return;
+      }
+      setImportResult(json);
+      fetchRoster(search);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error during CSV upload");
     }
-
-    setImportResult(json);
-    fetchRoster(search);
   };
 
   const handleDelete = async (email: string) => {
     if (!confirm(`Remove ${email} from roster?`)) return;
-    await fetch(`/api/savameta/roster?email=${encodeURIComponent(email)}`, {
-      method: "DELETE",
-    });
-    fetchRoster(search);
+    try {
+      const res = await fetch(
+        `/api/savameta/roster?email=${encodeURIComponent(email)}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error ?? `Delete failed (${res.status})`);
+        return;
+      }
+      fetchRoster(search);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error during delete");
+    }
   };
 
   // Delete column injected separately so handleDelete is in scope
@@ -345,20 +363,24 @@ export default function RosterSettingsPage() {
             <h2 className="text-sm font-semibold text-text-primary">
               Current Roster ({fmtInt(roster.length)})
             </h2>
-            <button
-              type="button"
-              onClick={expandAll}
-              className="text-xs text-primary hover:text-primary/80"
-            >
-              Expand all
-            </button>
-            <button
-              type="button"
-              onClick={collapseAll}
-              className="text-xs text-primary hover:text-primary/80"
-            >
-              Collapse all
-            </button>
+            {!search && (
+              <>
+                <button
+                  type="button"
+                  onClick={expandAll}
+                  className="text-xs text-primary hover:text-primary/80"
+                >
+                  Expand all
+                </button>
+                <button
+                  type="button"
+                  onClick={collapseAll}
+                  className="text-xs text-primary hover:text-primary/80"
+                >
+                  Collapse all
+                </button>
+              </>
+            )}
           </div>
           <input
             type="text"
@@ -391,14 +413,15 @@ export default function RosterSettingsPage() {
             {grouped.map((group) => {
               const isExpanded =
                 expandedDepts.has(group.key) || search.length > 0;
+              const slug = deptSlug(group.key);
               return (
                 <div key={group.key}>
                   <button
                     type="button"
                     onClick={() => toggleDept(group.key)}
                     aria-expanded={isExpanded}
-                    aria-controls={`dept-panel-${group.key}`}
-                    id={`dept-header-${group.key}`}
+                    aria-controls={`dept-panel-${slug}`}
+                    id={`dept-header-${slug}`}
                     className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-2/40 transition-colors"
                   >
                     <div className="flex items-center gap-2">
@@ -418,8 +441,8 @@ export default function RosterSettingsPage() {
                   {isExpanded && (
                     <div
                       role="region"
-                      id={`dept-panel-${group.key}`}
-                      aria-labelledby={`dept-header-${group.key}`}
+                      id={`dept-panel-${slug}`}
+                      aria-labelledby={`dept-header-${slug}`}
                     >
                       <ResponsiveTable
                         columns={colsWithDelete}
