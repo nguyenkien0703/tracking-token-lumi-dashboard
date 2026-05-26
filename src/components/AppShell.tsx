@@ -1,46 +1,54 @@
 "use client";
 
 import { useState } from "react";
+import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
     <>
-      {/* Mobile overlay */}
-      {open && (
+      {/* Mobile drawer overlay */}
+      {drawerOpen && (
         <div
-          className="fixed inset-0 z-20 bg-black/60 md:hidden"
-          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-20 bg-black/40 md:hidden"
+          onClick={() => setDrawerOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Mobile: drawer */}
       <div
-        className={`fixed left-0 top-0 h-full z-30 transition-transform duration-200
-          ${open ? "translate-x-0" : "-translate-x-full"}
-          md:translate-x-0`}
+        className={`fixed left-0 top-0 h-full z-30 transition-transform duration-200 md:hidden
+          ${drawerOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
-        <Sidebar onClose={() => setOpen(false)} />
+        <Sidebar variant="full" onClose={() => setDrawerOpen(false)} />
       </div>
 
-      {/* Top bar — mobile only */}
-      <div className="fixed top-0 left-0 right-0 h-12 bg-slate-900 border-b border-slate-700 flex items-center px-4 z-10 md:hidden">
+      {/* Tablet: icon rail */}
+      <div className="hidden md:flex lg:hidden fixed left-0 top-0 h-full z-10">
+        <Sidebar variant="rail" />
+      </div>
+
+      {/* Desktop: full sidebar */}
+      <div className="hidden lg:flex fixed left-0 top-0 h-full z-10">
+        <Sidebar variant="full" />
+      </div>
+
+      {/* Mobile top bar */}
+      <div className="fixed top-0 left-0 right-0 h-12 bg-surface border-b border-border-default flex items-center px-4 z-10 md:hidden">
         <button
-          onClick={() => setOpen(true)}
-          className="text-slate-400 hover:text-slate-100 transition-colors"
+          onClick={() => setDrawerOpen(true)}
+          className="text-text-secondary hover:text-text-primary transition-colors p-2 -ml-2"
           aria-label="Open menu"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
+          <Menu className="w-5 h-5" />
         </button>
-        <span className="ml-3 text-slate-200 text-sm font-semibold">Lumi Token</span>
+        <span className="ml-2 text-text-primary text-sm font-semibold">Lumi Token</span>
       </div>
 
       {/* Main content */}
-      <main className="min-h-screen pt-12 md:pt-0 md:ml-56 p-4 md:p-6">
+      <main className="min-h-screen pt-12 md:pt-0 md:ml-14 lg:ml-56 px-4 md:px-5 lg:px-6 py-6">
         {children}
       </main>
     </>
