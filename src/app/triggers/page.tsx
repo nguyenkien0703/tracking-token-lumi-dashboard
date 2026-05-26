@@ -7,6 +7,7 @@ import SegmentTabs from "@/components/SegmentTabs";
 import StatCard from "@/components/StatCard";
 import ResponsiveTable, { type Column } from "@/components/ResponsiveTable";
 import EmptyState from "@/components/EmptyState";
+import { downloadCsv } from "@/lib/csv";
 
 type Tab = "returning" | "first-value" | "first-resolution";
 
@@ -38,27 +39,6 @@ function fmtDateTime(s: string | null): string {
   if (!s) return "-";
   const d = new Date(s);
   return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-}
-
-function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
-  if (rows.length === 0) return;
-  const headers = Object.keys(rows[0]);
-  const escape = (v: unknown) => {
-    if (v === null || v === undefined) return "";
-    const s = String(v).replace(/"/g, '""');
-    return /[",\n]/.test(s) ? `"${s}"` : s;
-  };
-  const csv = [
-    headers.join(","),
-    ...rows.map((r) => headers.map((h) => escape(r[h])).join(",")),
-  ].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 // Column arrays defined outside component — stable reference, no re-creation on render.
