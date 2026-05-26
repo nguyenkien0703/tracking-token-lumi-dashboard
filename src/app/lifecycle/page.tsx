@@ -115,7 +115,7 @@ const lifecycleCols: Column<LifecycleUser>[] = [
       }
       const d = u.days_since_last_activity;
       const colorClass =
-        d <= 7  ? "text-success" :
+        d <= 3  ? "text-success" :
         d <= 30 ? "text-warning" :
                   "text-danger";
       return (
@@ -198,14 +198,6 @@ export default function LifecyclePage() {
     };
   }, [selectedBucket, fetchBucket]);
 
-  // Cleanup both on unmount
-  useEffect(() => {
-    return () => {
-      countsAbortRef.current?.abort();
-      usersAbortRef.current?.abort();
-    };
-  }, []);
-
   const total = counts
     ? counts.active + counts.at_risk + counts.dormant + counts.never_joined
     : 0;
@@ -277,7 +269,7 @@ export default function LifecyclePage() {
               onClick={() => setSelectedBucket(bucket)}
               aria-pressed={isSelected}
               className={`text-left transition-all ${
-                isSelected ? "ring-2 ring-primary ring-offset-2 ring-offset-bg rounded-lg" : ""
+                isSelected ? "ring-2 ring-primary ring-offset-2 ring-offset-surface rounded-lg" : ""
               }`}
             >
               <StatCard
