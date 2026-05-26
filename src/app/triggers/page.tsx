@@ -254,7 +254,7 @@ export default function TriggersPage() {
         <button
           type="button"
           onClick={() => setActiveTab("returning")}
-          aria-pressed={activeTab === "returning"}
+          aria-current={activeTab === "returning" ? "true" : undefined}
           className={`text-left transition-all ${
             activeTab === "returning"
               ? "ring-2 ring-primary ring-offset-2 ring-offset-surface rounded-xl"
@@ -271,7 +271,7 @@ export default function TriggersPage() {
         <button
           type="button"
           onClick={() => setActiveTab("first-value")}
-          aria-pressed={activeTab === "first-value"}
+          aria-current={activeTab === "first-value" ? "true" : undefined}
           className={`text-left transition-all ${
             activeTab === "first-value"
               ? "ring-2 ring-primary ring-offset-2 ring-offset-surface rounded-xl"
@@ -288,7 +288,7 @@ export default function TriggersPage() {
         <button
           type="button"
           onClick={() => setActiveTab("first-resolution")}
-          aria-pressed={activeTab === "first-resolution"}
+          aria-current={activeTab === "first-resolution" ? "true" : undefined}
           className={`text-left transition-all ${
             activeTab === "first-resolution"
               ? "ring-2 ring-primary ring-offset-2 ring-offset-surface rounded-xl"
@@ -312,7 +312,9 @@ export default function TriggersPage() {
             <button
               type="button"
               role="tab"
+              id="triggers-tab-returning"
               aria-selected={activeTab === "returning"}
+              aria-controls="triggers-panel-returning"
               onClick={() => setActiveTab("returning")}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "returning"
@@ -325,7 +327,9 @@ export default function TriggersPage() {
             <button
               type="button"
               role="tab"
+              id="triggers-tab-first-value"
               aria-selected={activeTab === "first-value"}
+              aria-controls="triggers-panel-first-value"
               onClick={() => setActiveTab("first-value")}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "first-value"
@@ -338,7 +342,9 @@ export default function TriggersPage() {
             <button
               type="button"
               role="tab"
+              id="triggers-tab-first-resolution"
               aria-selected={activeTab === "first-resolution"}
+              aria-controls="triggers-panel-first-resolution"
               onClick={() => setActiveTab("first-resolution")}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "first-resolution"
@@ -403,38 +409,44 @@ export default function TriggersPage() {
 
         {/* Tab content */}
         {activeTab === "returning" && (
-          <ResponsiveTable
-            columns={returningCols}
-            rows={returning}
-            rowKey={(u) => u.email}
-            emptyState={
-              <div className="px-4 py-10 text-center text-text-secondary text-sm">
-                No returning users in this window
-              </div>
-            }
-          />
+          <div role="tabpanel" id="triggers-panel-returning" aria-labelledby="triggers-tab-returning">
+            <ResponsiveTable
+              columns={returningCols}
+              rows={returning}
+              rowKey={(u) => u.email}
+              emptyState={
+                <div className="px-4 py-10 text-center text-text-secondary text-sm">
+                  No returning users in this window
+                </div>
+              }
+            />
+          </div>
         )}
 
         {activeTab === "first-value" && (
-          <ResponsiveTable
-            columns={firstValueCols}
-            rows={firstValue}
-            rowKey={(u) => u.email}
-            emptyState={
-              <div className="px-4 py-10 text-center text-text-secondary text-sm">
-                No users have reached first value yet
-              </div>
-            }
-          />
+          <div role="tabpanel" id="triggers-panel-first-value" aria-labelledby="triggers-tab-first-value">
+            <ResponsiveTable
+              columns={firstValueCols}
+              rows={firstValue}
+              rowKey={(u) => u.email}
+              emptyState={
+                <div className="px-4 py-10 text-center text-text-secondary text-sm">
+                  No users have reached first value yet
+                </div>
+              }
+            />
+          </div>
         )}
 
         {activeTab === "first-resolution" && (
-          <div className="p-6">
-            <EmptyState
-              icon={<Hourglass className="w-5 h-5" />}
-              title="First Resolution not yet defined"
-              description="BA cần xác định event nào = resolution (ví dụ: user feedback resolved, conversation ended với tag, hoặc detect bằng survey response). Khi có spec, mình implement."
-            />
+          <div role="tabpanel" id="triggers-panel-first-resolution" aria-labelledby="triggers-tab-first-resolution">
+            <div className="p-6">
+              <EmptyState
+                icon={<Hourglass className="w-5 h-5" />}
+                title="First Resolution not yet defined"
+                description="BA cần xác định event nào = resolution (ví dụ: user feedback resolved, conversation ended với tag, hoặc detect bằng survey response). Khi có spec, mình implement."
+              />
+            </div>
           </div>
         )}
       </section>
