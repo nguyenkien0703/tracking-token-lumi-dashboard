@@ -49,5 +49,33 @@ export async function initSchema(): Promise<void> {
     INSERT INTO sync_state (id, status)
     VALUES (1, 'idle')
     ON CONFLICT (id) DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS employee_roster (
+      email TEXT PRIMARY KEY,
+      full_name TEXT,
+      department TEXT,
+      source TEXT,
+      added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      added_by TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_roster_email_lower ON employee_roster (LOWER(email));
+
+    CREATE TABLE IF NOT EXISTS releases (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      start_date DATE NOT NULL,
+      end_date DATE,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_releases_start ON releases (start_date);
+
+    INSERT INTO releases (name, start_date, end_date, notes)
+    VALUES
+      ('Release 1', '2026-03-22', '2026-05-26', 'First rollout to Savameta'),
+      ('Release 2', '2026-05-27', NULL, 'Second rollout — ongoing')
+    ON CONFLICT (name) DO NOTHING;
   `);
 }
