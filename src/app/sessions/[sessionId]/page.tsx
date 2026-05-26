@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { getSessionCost, getSessionMessages } from "@/lib/api";
 import { UserCostSummary, SessionMessageEntry, SessionMessagesPagination } from "@/types";
-import StatCard from "@/components/StatCard";
+import StatCard from "@/components/StatCardLegacy";
 
 const PAGE_LIMIT = 20;
 const ORDER: "asc" | "desc" = "desc";
