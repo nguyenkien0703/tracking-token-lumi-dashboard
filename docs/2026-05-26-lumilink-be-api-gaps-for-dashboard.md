@@ -4,319 +4,186 @@
 **Author:** AnDT (DevOps)
 **Audience:** lumilink-be team (Kiên + Tâm)
 **Related PR:** [DefikitTeam/lumilink-be#5170 (`feat/read-apis`)](https://github.com/DefikitTeam/lumilink-be/pull/5170)
-**Related spec:** `lumilink-be/docs/superpowers/specs/2026-05-26-admin-read-apis-design.md`
 
 ---
 
 ## 1. TL;DR
 
-PR #5170 cover được ~70% nhu cầu của dashboard. Còn **3 gap** cần extend hoặc thêm endpoint mới để dashboard không phải tự maintain Postgres trung gian:
+**Nguyên tắc**: dev team chỉ expose raw data, **mọi business metric do dashboard tự compute** — Daily Active, Returning, First Value, lifecycle bucket, TTV, TTR... đều là logic của dashboard. BA đổi định nghĩa thì sửa dashboard, không phải sửa API.
 
-| # | Gap | Severity | Phase đề xuất |
-|---|-----|----------|---------------|
-| G1 | `metrics/summary.active*` định nghĩa "có ≥1 message trong window" — không phải **Daily Active N/N** (yêu cầu BA mới) | Medium | Phase 2 — extend |
-| G2 | Không có endpoint **Returning Users** (idle ≥X ngày → quay lại trong window) | High | Phase 2 — new endpoint |
-| G3 | Không có endpoint **First Value** (lần đầu user đạt ≥N turns trong 1 session) | High | Phase 2 — new endpoint |
+Sau khi audit 6 endpoint hiện có, raw data **gần như đầy đủ**. Còn **2 filter gap** đáng làm:
 
-Ngoài ra có **2 minor improvements** mong muốn để tối ưu (xem mục 5).
+| # | Gap | Severity | Endpoint ảnh hưởng |
+|---|-----|----------|---------------------|
+| F1 | Không filter được theo **email domain** | Medium | `/admin/costs/top-users` |
+| F2 | Không filter được theo **userId list** (IN array) | High | `/api/v1/normal-mode/costs/history` |
+
+Ngoài ra 1 vấn đề data integrity (M1) liên quan đến `messageId` overflow ở endpoint messages.
 
 ---
 
 ## 2. Bối cảnh
 
-Dashboard `tracking-token-lumi-dashboard` track adoption của 80 nhân sự `@savameta.com`. Hiện đang **sync raw data về Postgres** (bảng `users`, `history_entries`, `employee_roster`) rồi tự query — vì các metric phức tạp (Daily Active 7/7d, Returning, First Value) cần raw activity timeline mà API hiện chưa expose.
+Dashboard `tracking-token-lumi-dashboard` track adoption của 80 nhân sự `@savameta.com`. Hiện đang **sync raw data về Postgres** rồi tự query — vì cần raw activity timeline để compute Daily Active 7/7d, Returning Users (idle ≥7d → quay lại trong N ngày), First Value (≥5 turns trong 1 session).
 
-5 endpoints trong PR #5170 sẽ giúp dashboard:
-- Bỏ N+1 ở vòng lặp `/admin/costs/top-users` → `/user/{id}` (G0, đã giải quyết — không liệt kê ở đây).
-- Lấy adoption per-user trong 1 call (`/admin/users/adoption`).
-- Bulk lookup HR roster (`/admin/users/join-status`).
-- Aggregate metrics có cache (`/admin/metrics/summary`).
+**Quan điểm hiện tại sau khi review:**
 
-Nhưng **5 endpoints chưa đủ** để bỏ hoàn toàn Postgres sync — 3 metric ở mục 1 buộc dashboard vẫn phải giữ raw timeline.
+> Logic compute metric thuộc về dashboard, không phải lumilink-be. API chỉ cần raw data sạch + đủ filter để dashboard không kéo lượng dữ liệu vô ích.
+
+PR #5170 hiện đang build 5 endpoint admin/analytics có nhiều logic compute (`active7d/30d/90d`, `medianTTV`, `dormantUsers`, `metrics/summary`...) — **những phần compute này dashboard không cần dev team build**. Đề xuất focus lại vào 2 filter ở mục 3.
 
 ---
 
-## 3. Gap chi tiết
+## 3. Endpoint inventory (hiện trạng)
 
-### G1. "Daily Active N/N" metric
+| # | Endpoint | Trả về | Đã đủ? |
+|---|----------|--------|--------|
+| 1 | `GET /admin/costs/top-users` | List users + email + name + avatar + tokens + cost + requestCount | Yes (cần thêm filter F1) |
+| 2 | `GET /user/{userId}` | User profile (deprecated cho dashboard — #1 đã có) | OK |
+| 3 | `GET /api/v1/normal-mode/costs/history` | Raw history entry (id, sessionId, userId, model, tokens, costs, cacheReadTokens, createdAt) | Yes (cần thêm filter F2) |
+| 4 | `GET /api/v1/normal-mode/costs/user/{userId}/sessions` | Sessions của 1 user (title, status, tokens, cost, timestamps) | OK |
+| 5 | `GET /api/v1/normal-mode/costs/session/{sessionId}/messages` | Raw turn (messageId, role, tokens, cost, timestamps) | OK (xem M1) |
+| 6 | `GET /api/v1/normal-mode/costs/user/{userId}` | User cost summary | OK |
 
-#### Current spec
+Với 6 endpoint trên dashboard đã có đủ raw để compute mọi metric:
 
-`/admin/metrics/summary` trả `active7d`, `active30d`, `active90d`:
-
-> "Active" = sent at least 1 user-side message in the window (last 7/30/90 days, relative to `now`, ignoring `from`/`to`).
-
-#### Gap
-
-BA mới định nghĩa **Daily Active 7/7d** = user có **≥1 chat message ở MỖI ngày** trong 7 ngày calendar gần nhất. Tức là 7/7 ngày liên tục đều có activity, miss 1 ngày → fail.
-
-Số này nhỏ hơn nhiều so với "active7d" hiện tại. Dashboard cần cả 2:
-- `active7d` (hiện có) — soft metric: "có quay lại trong tuần"
-- `dailyActive7d` (cần thêm) — hard metric: "thành thói quen daily"
-
-Cùng pattern, BA có thể yêu cầu `dailyActiveNd` cho N tùy chỉnh (3, 5, 14, 30) trong tương lai.
-
-#### Đề xuất — Option A (preferred): extend `/admin/metrics/summary`
-
-Thêm field vào response cho mỗi segment:
-
-```json
-{
-  "savameta": {
-    "active7d": 45,
-    "active30d": 65,
-    "dailyActive7d": 8,         // NEW: distinct days = 7 in last 7 days
-    "dailyActive30d": 2          // NEW: distinct days = 30 in last 30 days
-  }
-}
-```
-
-**SQL pseudo (D1/SQLite):**
-```sql
-SELECT COUNT(*) FROM (
-  SELECT userId
-  FROM ChatMessage cm JOIN ChatSession cs ON cs.id = cm.chatSessionId
-  WHERE cm.role = 'user'
-    AND cm.createdAt >= datetime('now', '-7 days')
-    AND cs.userId IN (<segment user ids>)
-  GROUP BY cs.userId
-  HAVING COUNT(DISTINCT DATE(cm.createdAt)) = 7
-)
-```
-
-**Trade-off:** thêm 2 sub-query / segment × 3 segments = 6 queries. Đã có cache 5 phút nên acceptable.
-
-#### Đề xuất — Option B: new endpoint `/admin/users/daily-active`
-
-```
-GET /admin/users/daily-active?windowDays=7&requiredDays=7&emailDomain=savameta.com
-```
-
-Trả list users thoả mãn (kèm số ngày active). Linh hoạt hơn nhưng tốn 1 endpoint cho trường hợp đặc biệt.
-
-**Em đề xuất Option A** — extend summary, vì:
-- Dashboard cần **count** (không cần list từng user thoả) → fit response shape của summary.
-- Mở rộng tự nhiên metric đã có, không phá structure spec.
-- Cache 5 phút auto cover.
+| Metric (dashboard tự compute) | Raw data lấy từ |
+|---|---|
+| Joined / NotJoined (Adoption) | #1 (filter by email) + Excel roster |
+| Daily Active 7/7d | #3 (history entries) → `COUNT(DISTINCT date)` |
+| Lifecycle bucket (Active ≤3d / At-risk 4–30d / Dormant >30d) | #1 (lastActiveAt) hoặc #3 (MAX createdAt) |
+| Returning Users (idle ≥7d → return) | #3 → `LAG()` window function |
+| First Value (≥5 turns/session) | #5 hoặc #3 → `ROW_NUMBER() PARTITION BY userId, sessionId` |
+| Engagement summary (totalTurns, totalCost, ...) | #3 → SUM/COUNT |
+| Daily activity trend | #3 → `GROUP BY DATE(createdAt)` |
 
 ---
 
-### G2. Returning Users endpoint
+## 4. Gap chi tiết
 
-#### Current spec
+### F1. `/admin/costs/top-users` không filter theo `emailDomain`
 
-Không có.
+#### Vấn đề
 
-#### Use case (Phase 1D dashboard)
+Dashboard muốn lấy "top users là `@savameta.com`". Endpoint hiện trả top N theo cost, trong đó user external (gmail, ...) chiếm chỗ. Phải set `limit=500` rồi filter client → tốn bandwidth + slow.
 
-Detect users **quay lại sau khi idle ≥7 ngày**, để BA outreach. Dashboard hiện tự compute bằng `LAG()` window function trên Postgres sync.
+#### Đề xuất
 
-#### Đề xuất — new endpoint
+Thêm 2 query param:
 
-```
-GET /admin/users/returning
-```
-
-**Query params:**
 | Param | Type | Default | Notes |
 |-------|------|---------|-------|
-| `idleThresholdDays` | int ≥ 1 | `7` | User phải idle ≥ N ngày |
-| `windowDays` | int 1-30 | `1` | Quay lại trong N ngày gần nhất |
-| `emailDomain` | string | — | Filter Savameta |
-| `excludeAnonymous` | boolean | `true` | |
-| `limit` | int 1-200 | `100` | |
+| `emailDomain` | string (domain regex) | — | Filter `email LIKE '%@<domain>'` |
+| `excludeAnonymous` | boolean | `false` | Filter `loginType != 'anonymous'` (hoặc `email NOT LIKE '%@anon.lumilink'`) |
 
-**Response:**
-```json
+**Logic order:** filter user IDs at DB level **BEFORE** sort + paginate. Spec PR #5170 đã đề xuất đúng pattern này — chỉ cần giữ phần filter, **bỏ phần compute lastActiveAt** (vì dashboard tự derive từ #3).
+
+**Backward compat**: thêm param optional, không phá caller hiện tại (Lumi Token dashboard).
+
+---
+
+### F2. `/api/v1/normal-mode/costs/history` không filter theo `userIds[]`
+
+#### Vấn đề
+
+Dashboard muốn refresh raw history cho **80 Savameta users**. Endpoint hiện chỉ có `userId` (single) hoặc không filter → phải:
+
+- **Option A**: gọi 80 lần `?userId={id}` → N+1 fetch
+- **Option B**: gọi 1 lần không filter → fetch toàn bộ 2237 entries gồm external users → filter client (tốn bandwidth)
+
+Cả 2 đều tệ. Đặc biệt khi external users sẽ scale lên hàng nghìn — Option B chết.
+
+#### Đề xuất
+
+Cho phép **multiple userIds** trong 1 request:
+
+**Option preferred — repeat query param:**
+```
+GET /api/v1/normal-mode/costs/history?userId=8&userId=20&userId=42&from=2026-05-01&limit=1000
+```
+
+**Hoặc — POST với body để vượt qua URL length limit (80+ userId):**
+```http
+POST /api/v1/normal-mode/costs/history/search
 {
-  "success": true,
-  "data": {
-    "users": [
-      {
-        "userId": 123,
-        "email": "khoitt@savameta.com",
-        "firstName": "Khôi", "lastName": "Trần",
-        "previousActiveAt": "2026-04-07T08:20:00.000Z",
-        "returnedAt": "2026-05-22T10:13:05.000Z",
-        "idleDays": 45.1
-      }
-    ],
-    "total": 3,
-    "config": {
-      "idleThresholdDays": 7,
-      "windowDays": 1
-    }
-  }
+  "userIds": [8, 20, 42, ...],
+  "from": "2026-05-01",
+  "limit": 1000,
+  "offset": 0
 }
 ```
 
-**SQL pseudo:**
-```sql
-WITH activity_with_gap AS (
-  SELECT
-    cs.userId,
-    cm.createdAt AS current_at,
-    LAG(cm.createdAt) OVER (PARTITION BY cs.userId ORDER BY cm.createdAt) AS prev_at
-  FROM ChatMessage cm JOIN ChatSession cs ON cs.id = cm.chatSessionId
-  WHERE cm.role = 'user' AND cs.userId IN (<segment>)
-)
-SELECT DISTINCT ON (userId) ...
-WHERE
-  (current_at - prev_at) >= INTERVAL '<idleThresholdDays> days'
-  AND current_at >= NOW() - INTERVAL '<windowDays> days'
-ORDER BY userId, current_at DESC;
-```
+Em recommend **POST search variant** — clean hơn, không lo URL length, tiền lệ ở `/admin/users/join-status` PR #5170 đã có pattern body.
 
-**D1 note:** SQLite không có `LAG()` window function trên một số version. Cần check `@cloudflare/d1` SQLite version hiện tại. Fallback: self-join 2 lần.
+**Response shape**: giữ nguyên (entries + total + pagination). Không cần thêm field.
 
 ---
 
-### G3. First Value Users endpoint
+## 5. Minor: M1 — `messageId` overflow ở `/session/{id}/messages`
 
-#### Current spec
-
-Không có. (Spec có `medianTTV_L1_sec` và `medianTTV_L2_sec` nhưng đó là median của TTV, không phải list user-level.)
-
-#### Use case (Phase 1D dashboard)
-
-Detect users **lần đầu đạt ≥5 turns trong 1 session** — signal "user đã hiểu giá trị product". BA muốn outreach để xin share conversation.
-
-#### Đề xuất — new endpoint
-
-```
-GET /admin/users/first-value
-```
-
-**Query params:**
-| Param | Type | Default | Notes |
-|-------|------|---------|-------|
-| `turnThreshold` | int ≥ 1 | `5` | Số turn / session để gọi là "first value" |
-| `emailDomain` | string | — | |
-| `excludeAnonymous` | boolean | `true` | |
-| `limit` | int 1-200 | `100` | |
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "users": [
-      {
-        "userId": 20,
-        "email": "tamnt@savameta.com",
-        "firstName": "Tâm", "lastName": "Nguyễn",
-        "firstValueAt": "2026-03-19T10:07:21.000Z",
-        "sessionId": "fb383744-727b-4552-a8a9-9650d7401b59-25",
-        "turnsAtValue": 5
-      }
-    ],
-    "total": 4,
-    "config": { "turnThreshold": 5 }
-  }
-}
-```
-
-**SQL pseudo:**
-```sql
-WITH numbered_turns AS (
-  SELECT
-    cs.userId, cs.id AS sessionId, cm.createdAt,
-    ROW_NUMBER() OVER (PARTITION BY cs.userId, cs.id ORDER BY cm.createdAt) AS turn_no
-  FROM ChatMessage cm JOIN ChatSession cs ON cs.id = cm.chatSessionId
-  WHERE cm.role = 'user' AND cs.userId IN (<segment>)
-)
-SELECT DISTINCT ON (userId) userId, sessionId, createdAt AS firstValueAt, turn_no AS turnsAtValue
-FROM numbered_turns
-WHERE turn_no = <turnThreshold>
-ORDER BY userId, createdAt ASC;
-```
-
----
-
-## 4. Tổng kết endpoints sau gap
-
-| # | Endpoint | Status | Phase |
-|---|----------|--------|-------|
-| 1 | `GET /admin/costs/top-users` (extend) | PR #5170 | 1 |
-| 2 | `GET /admin/users/adoption` | PR #5170 | 1 |
-| 3 | `GET /admin/share-sessions` | PR #5170 | 1 |
-| 4 | `POST /admin/users/join-status` | PR #5170 | 1 |
-| 5 | `GET /admin/metrics/summary` (with G1 extension) | PR #5170 + extend | 1.5 |
-| 6 | `GET /admin/users/returning` | NEW | 2 |
-| 7 | `GET /admin/users/first-value` | NEW | 2 |
-
----
-
-## 5. Minor improvements
-
-### M1. `lastActiveAt` per user dùng `ChatMessage` thay vì `*CostLog`
-
-Spec hiện compute `lastActiveAt = MAX(NormalModeCostLog.createdAt, CodeModeCostLog.createdAt)`. Nhưng định nghĩa "active" của dashboard là **gửi message** → nên dùng `MAX(ChatMessage.createdAt WHERE role='user')`. CostLog cũng được tạo khi mỗi message gửi, nên có thể gần đúng, nhưng:
-
-- Có những API call tạo cost log nhưng không phải user-initiated (ví dụ background tool calls, retry).
-- Dashboard hiện dùng `history_entries.createdAt` = `NormalModeCostLog`, **nhận thấy** một số case `lastActiveAt` lệch với "last user message".
-
-**Đề xuất:** thêm field riêng `lastUserMessageAt` (song song với `lastActiveAt`) trong response của endpoints #1 và #2.
-
-### M2. Token field naming
-
-Dashboard hiện consume `totalPromptTokens`, `totalCompletionTokens`, `totalTokens`, `cache_read_tokens`. Spec response field `totalTokens` OK nhưng không thấy `cacheReadTokens` được expose:
+#### Vấn đề observed
 
 ```json
 {
-  "totalTokens": 872409,
-  "totalPromptTokens": 806135,
-  "totalCompletionTokens": 66274,
-  "totalCacheReadTokens": 145000   // NEW: needed for cache hit rate
+  "messageId": 9007199254740991,   // = Number.MAX_SAFE_INTEGER
+  "isUnmapped": true,
+  "role": null,
+  ...
 }
 ```
 
-Dashboard hiện compute `cacheHitRate = cacheReadTokens / promptTokens`. Không có field này thì dashboard mất metric.
+Đây là sentinel value cho entry chưa map được với DB. Không phải bug nghiêm trọng, nhưng:
+
+- Dashboard phải skip những entry này khi count "user turns".
+- `role: null` → không phân biệt được user-turn vs assistant-turn → khó compute "First Value" chính xác (cần đếm chỉ user message).
+
+#### Đề xuất
+
+- Documentation: spec rõ semantics của `isUnmapped: true` và khi nào field `role` là null. Ideal là `role` không null cho mọi message (kể cả unmapped — đoán từ context).
+- Filter param: `?excludeUnmapped=true` để dashboard không phải filter client.
 
 ---
 
-## 6. Migration plan (dashboard-side)
+## 6. Out of scope (dev team KHÔNG cần build)
 
-Khi 7 endpoints (5 PR #5170 + 2 mới G2/G3) sẵn sàng, dashboard có thể:
+Spec PR #5170 đang định build mấy thứ sau — em đề xuất **bỏ** vì dashboard sẽ tự compute:
 
-| Bước | Thay đổi |
-|------|---------|
-| 1 | Bỏ N+1 ở sync: gọi `/admin/users/adoption` thay cho loop `/user/{id}` |
-| 2 | Thay query `getAdoptionSummary` bằng 1 call `/admin/users/join-status` (POST 80 emails) + 1 call `/admin/metrics/summary` |
-| 3 | Thay query `getEngagementSummary` bằng `/admin/metrics/summary` (3 segments) — sau khi M2 add `cacheReadTokens` |
-| 4 | Thay 2 routes `/api/savameta/triggers/{returning,first-value}` bằng proxy call sang `/admin/users/{returning,first-value}` |
-| 5 | Đánh giá: có thể bỏ Postgres `history_entries` được không? Nếu có endpoint #6+#7 + summary metrics đủ → bỏ sync tốn kém |
+| Feature trong spec | Lý do bỏ |
+|---|----------|
+| `/admin/users/adoption` | Dashboard derive từ #1 + #3 |
+| `/admin/users/join-status` (POST bulk lookup) | Dashboard derive từ #1 + Excel roster (chỉ 80 email, không cần endpoint) |
+| `/admin/metrics/summary.active7d/30d/90d` | Dashboard compute từ #3 |
+| `/admin/metrics/summary.dormantUsers` | Dashboard compute từ #3 |
+| `/admin/metrics/summary.medianTTV_L1/L2` | Dashboard compute (chưa có yêu cầu rõ TTV của BA) |
+| `/admin/share-sessions` | Dashboard compute từ #3 nếu share data có trong history; nếu không thì có thể giữ |
+| Caching `metrics/summary` 5 phút | Dashboard tự cache ở Postgres / Next.js memory |
 
-Việc bỏ Postgres sync **tiết kiệm**:
-- 1 docker container postgres + volume trên VPS
-- Background sync job với token refresh logic
-- Cache invalidation logic phức tạp
+**Endpoint duy nhất trong spec đáng giữ:**
 
-Bù lại dashboard sẽ **phụ thuộc** vào latency của `lumilink-api`. Cần đo p95 trước khi quyết định.
-
----
-
-## 7. Open questions cho dev team
-
-- [ ] D1/SQLite version hiện có support `LAG()` / `ROW_NUMBER()` không? (Cần cho G2, G3)
-- [ ] Có thể extend `metrics/summary` với `dailyActiveNd` không phá cache key hiện tại không? (G1)
-- [ ] Endpoint G2/G3 ưu tiên Phase nào — sau khi PR #5170 merge có thể làm tiếp luôn?
-- [ ] M1 (`lastUserMessageAt`) có khả thi không, hay chi phí thêm query quá cao?
-- [ ] M2 (`cacheReadTokens`) field có sẵn trong cost log không?
+- `/admin/costs/top-users` extension (đã có lý do F1) — chỉ giữ phần **filter + pagination**, bỏ phần compute `lastActiveAt`.
 
 ---
 
-## Appendix: Mapping dashboard queries → endpoints
+## 7. Tóm tắt action items cho dev team
 
-| Dashboard query (current) | API endpoint (after spec + gaps) |
-|---------------------------|-----------------------------------|
-| `getAdoptionSummary` | `/admin/users/join-status` + `/admin/metrics/summary` |
-| `getJoinedUsers` | `/admin/users/adoption?emailDomain=savameta.com` |
-| `getNeverJoinedUsers` | `/admin/users/join-status` (notJoined) |
-| `getLifecycleCounts` | `/admin/users/adoption` (derive bucket from `daysSinceLastChat`) |
-| `getEngagementSummary` | `/admin/metrics/summary.savameta` |
-| `getEngagementByUser` | `/admin/users/adoption` (sort/filter) |
-| `getDailyActivity` | **Gap** — cần endpoint daily timeline (Phase 3?) |
-| `detectReturningUsers` | `/admin/users/returning` (G2) |
-| `detectFirstValueUsers` | `/admin/users/first-value` (G3) |
-| `countDailyActiveUsers7d` | `/admin/metrics/summary.dailyActive7d` (G1) |
+### Bắt buộc (HIGH)
+
+- [ ] **F2**: Cho phép multiple userIds trong `/costs/history` (POST search variant preferred).
+- [ ] **F1**: Thêm `emailDomain` + `excludeAnonymous` filter cho `/admin/costs/top-users`.
+
+### Nên có (MEDIUM)
+
+- [ ] **M1**: Spec rõ semantics `isUnmapped` + non-null `role` cho `/session/{id}/messages`. Thêm `?excludeUnmapped=true`.
+
+### Bỏ khỏi scope (nếu chưa build)
+
+- [ ] PR #5170 các endpoint compute metric (`adoption`, `metrics/summary`, ...) — dashboard tự lo.
+
+---
+
+## 8. Open questions
+
+- [ ] Confirm rằng cách filter ở F1 chỉ dùng cho `top-users` endpoint, không phá tương thích Lumi Token dashboard hiện đang dùng.
+- [ ] F2: ưu tiên POST search variant hay repeat query param?
+- [ ] M1: `role` được set null vì đâu — Prisma schema cho phép, hay logic backend chưa fill?
+- [ ] Có nên thêm `?sinceCreatedAt={ISO}` cho `/costs/history` để dashboard refresh incremental (chỉ fetch entries mới) thay vì refetch full mỗi sync?
