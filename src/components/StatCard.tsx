@@ -18,28 +18,40 @@ export type StatCardProps = {
   delta?: StatCardDelta;
   tone?: StatCardTone;
   valueColor?: StatCardValueColor;
+  badge?: { text: string; variant: "renamed" | "new" | "pending" };
   icon?: ReactNode;
   loading?: boolean;
   grouped?: boolean;
 };
 
 const valueColorMap: Record<StatCardValueColor, string> = {
-  default: "text-text-primary",
-  blue:    "text-[#60A5FA]",
-  green:   "text-[#34D399]",
-  amber:   "text-[#FBBF24]",
-  purple:  "text-[#A78BFA]",
-  cyan:    "text-[#22D3EE]",
-  rose:    "text-[#FB7185]",
-  slate:   "text-text-secondary",
+  default: "#F1F5F9",
+  blue:    "#60A5FA",
+  green:   "#34D399",
+  amber:   "#FBBF24",
+  purple:  "#A78BFA",
+  cyan:    "#22D3EE",
+  rose:    "#FB7185",
+  slate:   "#94A3B8",
 };
 
-const chipBgMap: Record<StatCardTone, string> = {
-  default: "bg-primary/10 text-primary",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/10 text-warning",
-  danger:  "bg-danger/10 text-danger",
+const badgeStyle: Record<"renamed" | "new" | "pending", React.CSSProperties> = {
+  renamed: { background: "rgba(16,185,129,0.1)", color: "#6EE7B7", border: "1px solid rgba(16,185,129,0.2)" },
+  new:     { background: "rgba(59,130,246,0.15)", color: "#60A5FA", border: "1px solid rgba(59,130,246,0.2)" },
+  pending: { background: "rgba(100,116,139,0.15)", color: "#475569", border: "1px solid #252D4A" },
 };
+
+function Badge({ text, variant }: { text: string; variant: "renamed" | "new" | "pending" }) {
+  return (
+    <span style={{
+      display: "inline-block", padding: "1px 6px", borderRadius: 4,
+      fontSize: 10, fontWeight: 600, marginLeft: 4, verticalAlign: "middle",
+      ...badgeStyle[variant],
+    }}>
+      {text}
+    </span>
+  );
+}
 
 function DeltaRow({ delta }: { delta: StatCardDelta }) {
   const positiveIsGood = delta.positiveIsGood ?? true;
@@ -47,8 +59,8 @@ function DeltaRow({ delta }: { delta: StatCardDelta }) {
 
   if (abs < 0.5) {
     return (
-      <p className="mt-1 flex items-center gap-1 text-xs text-text-muted">
-        <Minus className="w-3 h-3" />
+      <p style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#475569" }}>
+        <Minus style={{ width: 10, height: 10 }} />
         <span>stable{delta.label ? ` ${delta.label}` : ""}</span>
       </p>
     );
@@ -56,14 +68,14 @@ function DeltaRow({ delta }: { delta: StatCardDelta }) {
 
   const isUp = delta.value > 0;
   const isGood = isUp === positiveIsGood;
-  const color = isGood ? "text-success" : "text-danger";
+  const color = isGood ? "#10B981" : "#EF4444";
   const Arrow = isUp ? ArrowUp : ArrowDown;
 
   return (
-    <p className={`mt-1 flex items-center gap-1 text-xs font-medium ${color}`}>
-      <Arrow className="w-3 h-3" />
+    <p style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 500, color }}>
+      <Arrow style={{ width: 10, height: 10 }} />
       <span>{Math.abs(delta.value).toFixed(1)}%</span>
-      {delta.label && <span className="text-text-muted font-normal">{delta.label}</span>}
+      {delta.label && <span style={{ color: "#475569", fontWeight: 400 }}>{delta.label}</span>}
     </p>
   );
 }
@@ -75,13 +87,18 @@ export default function StatCard({
   delta,
   tone = "default",
   valueColor = "default",
+  badge,
   icon,
   loading = false,
-  grouped = false,
 }: StatCardProps) {
+  const borderColor =
+    tone === "warning" ? "rgba(245,158,11,0.4)" :
+    tone === "danger"  ? "rgba(239,68,68,0.4)"  :
+    "#252D4A";
+
   if (loading) {
     return (
-      <div className="bg-surface border border-border-default rounded-[10px] px-4 py-3.5">
+      <div style={{ background: "#141A2E", border: `1px solid ${borderColor}`, borderRadius: 10, padding: "14px 16px" }}>
         <Skeleton width="60%" height={9} />
         <Skeleton width="50%" height={22} className="mt-2" />
         <Skeleton width="40%" height={10} className="mt-1.5" />
@@ -90,28 +107,20 @@ export default function StatCard({
   }
 
   return (
-    <div className={`bg-surface border rounded-[10px] px-4 py-3.5 ${
-      tone === "warning" ? "border-warning/40" :
-      tone === "danger"  ? "border-danger/40"  :
-      "border-border-default"
-    }`}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[10px] uppercase tracking-[0.08em] text-text-muted font-semibold leading-none mb-2">
+    <div style={{ background: "#141A2E", border: `1px solid ${borderColor}`, borderRadius: 10, padding: "14px 16px" }}>
+      <div style={{ marginBottom: 8 }}>
+        <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748B", fontWeight: 600, lineHeight: 1 }}>
           {label}
+          {badge && <Badge text={badge.text} variant={badge.variant} />}
         </p>
-        {icon && (
-          <div className={`w-6 h-6 rounded flex items-center justify-center ${chipBgMap[tone]}`}>
-            {icon}
-          </div>
-        )}
       </div>
-      <p className={`font-mono text-[22px] font-bold leading-none tabular-nums ${valueColorMap[valueColor]}`}>
+      <p style={{ fontSize: 22, fontWeight: 700, fontFamily: "'SF Mono', ui-monospace, monospace", lineHeight: 1, color: valueColorMap[valueColor] }}>
         {value}
       </p>
       {delta ? (
         <DeltaRow delta={delta} />
       ) : hint ? (
-        <p className="mt-1.5 text-[11px] text-text-muted">{hint}</p>
+        <p style={{ fontSize: 11, color: "#475569", marginTop: 5 }}>{hint}</p>
       ) : null}
     </div>
   );

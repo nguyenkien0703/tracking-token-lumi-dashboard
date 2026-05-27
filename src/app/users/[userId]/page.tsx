@@ -119,118 +119,124 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
     setOffset(newOffset);
   };
 
+  const initials = userInfo
+    ? (userInfo.firstName?.[0] ?? userInfo.lastName?.[0] ?? userInfo.email?.[0] ?? "U").toUpperCase()
+    : "U";
+
   return (
-    <div className="max-w-7xl mx-auto space-y-4">
+    <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+
       {/* User header */}
-      <div className="flex items-center gap-3 mb-2">
-        {userInfo?.avatarUrl ? (
-          <img src={userInfo.avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
-        ) : (
-          <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-lg text-white"
-            style={{ background: "linear-gradient(135deg, #3B82F6, #6366F1)" }}>
-            {userInfo ? (userInfo.firstName?.[0] ?? userInfo.lastName?.[0] ?? userInfo.email?.[0] ?? "U").toUpperCase() : "U"}
-          </div>
-        )}
-        <div>
-          <h1 className="text-xl font-bold text-text-primary leading-tight">{userName}</h1>
-          {userInfo?.email && (
-            <p className="text-text-muted text-xs mt-0.5">{userInfo.email}</p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {userInfo?.avatarUrl ? (
+            <img src={userInfo.avatarUrl} alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover" }} />
+          ) : (
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg, #3B82F6, #6366F1)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 16, color: "white" }}>
+              {initials}
+            </div>
           )}
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#F1F5F9" }}>{userName}</div>
+            {userInfo?.email && <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{userInfo.email}</div>}
+          </div>
         </div>
       </div>
 
       {error && (
-        <div className="bg-danger/10 border border-danger/30 text-danger text-sm px-4 py-3 rounded-lg">
+        <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#EF4444", fontSize: 13, padding: "10px 16px", borderRadius: 8, marginBottom: 16 }}>
           {error}
         </div>
       )}
 
+      {/* Section label */}
+      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3B82F6", fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        Token Metrics
+        <span style={{ flex: 1, height: 1, background: "rgba(59,130,246,0.2)" }} />
+      </div>
+
       {/* Row 1: Token metrics */}
-      <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-[0.08em] font-bold text-primary flex items-center gap-2">
-          Token Metrics
-          <span className="flex-1 h-px bg-primary/20" />
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard
-            label="Total Tokens"
-            value={summary ? summary.totalTokens.toLocaleString() : "—"}
-            loading={loadingSummary}
-            valueColor="blue"
-            delta={
-              comparison
-                ? { value: calcDelta(comparison.current.totalTokens, comparison.previous.totalTokens), label: "vs prev period", positiveIsGood: false }
-                : undefined
-            }
-          />
-          <StatCard
-            label="Input Tokens"
-            value={summary ? summary.totalPromptTokens.toLocaleString() : "—"}
-            loading={loadingSummary}
-            valueColor="slate"
-          />
-          <StatCard
-            label="Output Tokens"
-            value={summary ? summary.totalCompletionTokens.toLocaleString() : "—"}
-            loading={loadingSummary}
-            valueColor="slate"
-          />
-          <StatCard
-            label="Total Cost"
-            value={summary ? `$${summary.totalCostUsd.toFixed(4)}` : "—"}
-            hint="USD"
-            loading={loadingSummary}
-            tone={alertThreshold !== null && summary && summary.totalCostUsd > alertThreshold ? "warning" : "default"}
-            valueColor="green"
-            delta={
-              comparison
-                ? { value: calcDelta(comparison.current.totalCostUsd, comparison.previous.totalCostUsd), label: "vs prev period", positiveIsGood: false }
-                : undefined
-            }
-          />
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+        <StatCard
+          label="Total Tokens"
+          value={summary ? summary.totalTokens.toLocaleString() : "—"}
+          loading={loadingSummary}
+          valueColor="blue"
+          delta={comparison ? { value: calcDelta(comparison.current.totalTokens, comparison.previous.totalTokens), label: "vs prev period", positiveIsGood: false } : undefined}
+        />
+        <StatCard
+          label="Input Tokens"
+          value={summary ? summary.totalPromptTokens.toLocaleString() : "—"}
+          loading={loadingSummary}
+          valueColor="slate"
+          badge={{ text: "renamed", variant: "renamed" }}
+        />
+        <StatCard
+          label="Output Tokens"
+          value={summary ? summary.totalCompletionTokens.toLocaleString() : "—"}
+          loading={loadingSummary}
+          valueColor="slate"
+          badge={{ text: "renamed", variant: "renamed" }}
+        />
+        <StatCard
+          label="Total Cost"
+          value={summary ? `$${summary.totalCostUsd.toFixed(4)}` : "—"}
+          hint="USD"
+          loading={loadingSummary}
+          tone={alertThreshold !== null && summary && summary.totalCostUsd > alertThreshold ? "warning" : "default"}
+          valueColor="green"
+          delta={comparison ? { value: calcDelta(comparison.current.totalCostUsd, comparison.previous.totalCostUsd), label: "vs prev period", positiveIsGood: false } : undefined}
+        />
+      </div>
+
+      {/* Section label */}
+      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3B82F6", fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        Activity &amp; Cache
+        <span style={{ flex: 1, height: 1, background: "rgba(59,130,246,0.2)" }} />
       </div>
 
       {/* Row 2: Activity & cache */}
-      <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-[0.08em] font-bold text-primary flex items-center gap-2">
-          Activity &amp; Cache
-          <span className="flex-1 h-px bg-primary/20" />
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard
-            label="Turns"
-            value={summary ? summary.requestCount.toLocaleString() : "—"}
-            loading={loadingSummary}
-            valueColor="amber"
-          />
-          <StatCard
-            label="Sessions"
-            value={sessionsData ? sessionsData.total.toLocaleString() : "—"}
-            loading={loadingSessions}
-            valueColor="purple"
-          />
-          <StatCard
-            label="Avg Cost / Turn"
-            value={summary && summary.requestCount > 0 ? `$${(summary.totalCostUsd / summary.requestCount).toFixed(4)}` : "—"}
-            loading={loadingSummary}
-            valueColor="green"
-          />
-          <StatCard
-            label="Cache Saving"
-            value={summary?.cacheSavingUsd != null ? `$${summary.cacheSavingUsd.toFixed(4)}` : "$0.0000"}
-            hint="USD — BE pending"
-            loading={loadingSummary}
-            valueColor="cyan"
-          />
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        <StatCard
+          label="Turns"
+          value={summary ? summary.requestCount.toLocaleString() : "—"}
+          loading={loadingSummary}
+          valueColor="amber"
+          badge={{ text: "renamed", variant: "renamed" }}
+        />
+        <StatCard
+          label="Sessions"
+          value={sessionsData ? sessionsData.total.toLocaleString() : "—"}
+          loading={loadingSessions}
+          valueColor="purple"
+          badge={{ text: "new", variant: "new" }}
+          hint={sessionsData && summary ? `Avg ${(summary.requestCount / sessionsData.total).toFixed(1)} turns/session` : undefined}
+        />
+        <StatCard
+          label="Avg Cost / Turn"
+          value={summary && summary.requestCount > 0 ? `$${(summary.totalCostUsd / summary.requestCount).toFixed(4)}` : "—"}
+          loading={loadingSummary}
+          valueColor="green"
+          badge={{ text: "new", variant: "new" }}
+          hint={summary && summary.requestCount > 0 ? `= $${summary.totalCostUsd.toFixed(4)} / ${summary.requestCount} turns` : undefined}
+        />
+        <StatCard
+          label="Cache Saving"
+          value={summary?.cacheSavingUsd != null ? `$${summary.cacheSavingUsd.toFixed(2)}` : "$0.00"}
+          loading={loadingSummary}
+          valueColor="cyan"
+          badge={{ text: "BE pending", variant: "pending" }}
+          hint="Waiting for BE data"
+        />
       </div>
 
       {/* Chart */}
-      <div className="bg-surface border border-border-default rounded-lg p-4">
-        <h2 className="text-text-primary font-medium text-[13px] mb-3">Token Usage Over Time</h2>
+      <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, padding: "16px 20px", marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0", marginBottom: 12 }}>
+          Token Usage Over Time
+        </div>
         {loadingSessions ? (
-          <div className="h-56 flex items-center justify-center text-text-muted text-sm animate-pulse">
+          <div style={{ height: 140, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }}>
             Loading chart...
           </div>
         ) : (
@@ -240,17 +246,15 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
 
       {/* Session Table */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-text-primary font-semibold">
-            Chat Sessions
-            {sessionsData && (
-              <span className="ml-2 text-text-muted font-normal text-sm">
-                ({sessionsData.total.toLocaleString()} sessions)
-              </span>
-            )}
-          </h2>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "#E2E8F0" }}>Chat Sessions</span>
+          {sessionsData && (
+            <span style={{ fontSize: 12, color: "#64748B", fontWeight: 400, marginLeft: 6 }}>
+              ({sessionsData.total.toLocaleString()} sessions)
+            </span>
+          )}
           {loadingSessions && (
-            <span className="text-text-muted text-xs animate-pulse">Loading...</span>
+            <span style={{ fontSize: 11, color: "#475569", marginLeft: "auto" }} className="animate-pulse">Loading...</span>
           )}
         </div>
         {sessionsData ? (
@@ -263,7 +267,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
             onPageChange={handlePageChange}
           />
         ) : (
-          <div className="bg-surface border border-border-default rounded-xl h-24 flex items-center justify-center text-text-muted text-sm animate-pulse">
+          <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, height: 96, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }} className="animate-pulse">
             Loading...
           </div>
         )}

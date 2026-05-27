@@ -55,7 +55,7 @@ export default function AppShell({ children, isAdmin }: { children: React.ReactN
         <div className="hidden md:block">
           <TopBar />
         </div>
-        <main className="flex-1 px-4 md:px-5 lg:px-6 py-5">
+        <main className="flex-1 px-6 py-5">
           {children}
         </main>
       </div>

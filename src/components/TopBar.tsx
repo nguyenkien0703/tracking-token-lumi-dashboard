@@ -35,44 +35,57 @@ export default function TopBar() {
   const { breadcrumbs, showDatePicker, dateRange, activePeriod, setDateRange } = useTopBar();
 
   return (
-    <div className="sticky top-0 z-20 bg-surface border-b border-border-default px-6 py-2.5 flex items-center justify-between gap-4 min-h-[44px]">
+    <div style={{
+      position: "sticky", top: 0, zIndex: 20,
+      background: "#141A2E", borderBottom: "1px solid #252D4A",
+      padding: "10px 24px",
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      minHeight: 44,
+    }}>
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs text-text-muted min-w-0">
+      <nav style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#64748B" }}>
         {breadcrumbs.map((crumb, i) => (
-          <span key={i} className="flex items-center gap-1.5 min-w-0">
-            {i > 0 && <span className="text-[#334155] shrink-0">/</span>}
+          <span key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {i > 0 && <span style={{ color: "#334155" }}>/</span>}
             {crumb.href ? (
-              <Link href={crumb.href} className="hover:text-text-primary transition-colors truncate">
+              <Link href={crumb.href} style={{ color: "#94A3B8", textDecoration: "none" }}
+                className="hover:!text-[#F1F5F9] transition-colors">
                 {crumb.label}
               </Link>
             ) : (
-              <span className="text-text-primary font-medium truncate">{crumb.label}</span>
+              <span style={{ color: "#F1F5F9", fontWeight: 500 }}>{crumb.label}</span>
             )}
           </span>
         ))}
       </nav>
 
-      {/* Date range pills — only shown when page opts in */}
+      {/* Date range pills */}
       {showDatePicker && (
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", gap: 4 }}>
             {PILLS.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setDateRange(periodToRange(p.id), p.id)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                  activePeriod === p.id
-                    ? "bg-primary text-white"
-                    : "text-text-muted hover:text-text-primary border border-border-default"
-                }`}
+                style={{
+                  padding: "4px 10px", borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: "pointer",
+                  border: activePeriod === p.id ? "1px solid #3B82F6" : "1px solid #252D4A",
+                  color: activePeriod === p.id ? "white" : "#64748B",
+                  background: activePeriod === p.id ? "#3B82F6" : "transparent",
+                  transition: "all 0.15s",
+                }}
               >
                 {p.label}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-base border border-border-default rounded-md text-xs text-text-secondary">
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "6px 12px", background: "#141A2E", border: "1px solid #252D4A", borderRadius: 7,
+            fontSize: 12, color: "#94A3B8",
+          }}>
             <span>{formatDateDisplay(dateRange.from)}</span>
-            <span className="text-[#334155]">→</span>
+            <span style={{ color: "#334155" }}>→</span>
             <span>{formatDateDisplay(dateRange.to)}</span>
           </div>
         </div>

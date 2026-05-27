@@ -18,12 +18,8 @@ function calcBurnRate(
   firstTrackedAt: string,
   lastTrackedAt: string
 ): string {
-  if (!firstTrackedAt || !lastTrackedAt || firstTrackedAt === lastTrackedAt) {
-    return "—";
-  }
-  const hours =
-    (new Date(lastTrackedAt).getTime() - new Date(firstTrackedAt).getTime()) /
-    3_600_000;
+  if (!firstTrackedAt || !lastTrackedAt || firstTrackedAt === lastTrackedAt) return "—";
+  const hours = (new Date(lastTrackedAt).getTime() - new Date(firstTrackedAt).getTime()) / 3_600_000;
   if (hours < 0.01) return "—";
   const rate = totalTokens / hours;
   if (rate >= 1_000_000) return `${(rate / 1_000_000).toFixed(1)}M/hr`;
@@ -31,85 +27,132 @@ function calcBurnRate(
   return `${Math.round(rate)}/hr`;
 }
 
-export default function SessionTable({
-  entries,
-  total,
-  limit,
-  offset,
-  userId,
-  onPageChange,
-}: Props) {
+const thStyle: React.CSSProperties = {
+  padding: "8px 10px",
+  fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em",
+  color: "#475569", fontWeight: 600,
+  borderBottom: "1px solid #1E293B",
+  whiteSpace: "nowrap",
+  textAlign: "right",
+};
+
+const tdBase: React.CSSProperties = {
+  padding: "8px 10px",
+  borderBottom: "1px solid rgba(30,41,59,0.6)",
+  fontSize: 12,
+  fontFamily: "'SF Mono', ui-monospace, monospace",
+  textAlign: "right",
+  color: "#94A3B8",
+};
+
+function Badge({ text, color, bg, border }: { text: string; color: string; bg: string; border: string }) {
+  return (
+    <span style={{
+      display: "inline-block", fontSize: 8, background: bg, color, padding: "1px 4px",
+      borderRadius: 3, fontWeight: 700, marginLeft: 4, verticalAlign: "middle",
+      letterSpacing: "0.04em", border: `1px solid ${border}`,
+    }}>
+      {text}
+    </span>
+  );
+}
+
+export default function SessionTable({ entries, total, limit, offset, userId, onPageChange }: Props) {
   const page = Math.floor(offset / limit) + 1;
   const totalPages = Math.ceil(total / limit);
 
   return (
     <div>
-      <div className="overflow-x-auto rounded-xl border border-border-default">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-surface-2 text-text-muted text-xs uppercase tracking-wider">
-            <tr>
-              <th className="px-3 py-3 w-10 text-center">#</th>
-              <th className="px-3 py-3">Title</th>
-              <th className="px-3 py-3 text-right whitespace-nowrap">Turns</th>
-              <th className="px-3 py-3 text-right whitespace-nowrap">Input Tokens</th>
-              <th className="px-3 py-3 text-right whitespace-nowrap">Output Tokens</th>
-              <th className="px-3 py-3 text-right whitespace-nowrap">Cache Write</th>
-              <th className="px-3 py-3 text-right whitespace-nowrap">Cache Hit</th>
-              <th className="px-3 py-3 text-right whitespace-nowrap">Saving ($)</th>
-              <th className="px-3 py-3 text-right whitespace-nowrap">Burn Rate</th>
-              <th className="px-3 py-3 text-right whitespace-nowrap">Cost</th>
-              <th className="px-3 py-3 whitespace-nowrap">Created At</th>
+      <div style={{ overflowX: "auto", borderRadius: 10, border: "1px solid #252D4A" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: "rgba(255,255,255,0.04)" }}>
+              <th style={{ ...thStyle, width: 32, textAlign: "center" }}>#</th>
+              <th style={{ ...thStyle, textAlign: "left", minWidth: 180 }}>Title</th>
+              <th style={thStyle}>
+                Turns
+                <Badge text="RENAMED" color="#6EE7B7" bg="rgba(16,185,129,0.15)" border="rgba(16,185,129,0.2)" />
+              </th>
+              <th style={thStyle}>
+                Input Tokens
+                <Badge text="RENAMED" color="#6EE7B7" bg="rgba(16,185,129,0.15)" border="rgba(16,185,129,0.2)" />
+              </th>
+              <th style={thStyle}>
+                Output Tokens
+                <Badge text="RENAMED" color="#6EE7B7" bg="rgba(16,185,129,0.15)" border="rgba(16,185,129,0.2)" />
+              </th>
+              <th style={thStyle}>
+                Cache Write
+                <Badge text="BE PENDING" color="#475569" bg="rgba(100,116,139,0.15)" border="#252D4A" />
+              </th>
+              <th style={thStyle}>
+                Cache Hit
+                <Badge text="BE PENDING" color="#475569" bg="rgba(100,116,139,0.15)" border="#252D4A" />
+              </th>
+              <th style={thStyle}>
+                Saving ($)
+                <Badge text="BE PENDING" color="#475569" bg="rgba(100,116,139,0.15)" border="#252D4A" />
+              </th>
+              <th style={thStyle}>
+                Burn Rate
+                <Badge text="NEW" color="#60A5FA" bg="rgba(59,130,246,0.2)" border="rgba(59,130,246,0.3)" />
+              </th>
+              <th style={thStyle}>Cost</th>
+              <th style={{ ...thStyle, textAlign: "left" }}>Created At</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border-default/50">
+          <tbody>
             {entries.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-4 py-10 text-center text-text-muted">
+                <td colSpan={11} style={{ ...tdBase, textAlign: "center", padding: "40px 10px", color: "#475569" }}>
                   No sessions found
                 </td>
               </tr>
             )}
             {entries.map((e, i) => (
-              <tr key={e.sessionId} className="hover:bg-surface-2/50 transition-colors">
-                <td className="px-3 py-2 text-center text-text-muted text-xs tabular-nums">
+              <tr key={e.sessionId} style={{ background: "transparent" }}
+                className="hover:bg-white/[0.02] transition-colors">
+                <td style={{ ...tdBase, textAlign: "center", color: "#475569", fontSize: 11 }}>
                   {offset + i + 1}
                 </td>
-                <td className="px-3 py-2 max-w-[260px]">
+                <td style={{ ...tdBase, textAlign: "left", fontFamily: "inherit" }}>
                   <Link
                     href={`/sessions/${e.sessionId}?userId=${userId}`}
-                    className="hover:underline text-xs font-medium truncate block"
-                    style={{ color: "#818CF8" }}
+                    style={{ color: "#818CF8", fontWeight: 500, fontSize: 12, display: "block", textDecoration: "none" }}
+                    className="hover:underline"
                     title={e.title ?? e.sessionId}
                   >
-                    {e.title || <span className="text-text-muted italic">Untitled</span>}
+                    {e.title || <span style={{ color: "#475569", fontStyle: "italic" }}>Untitled</span>}
                   </Link>
-                  <span className="font-mono text-[10px] text-text-muted/40">{e.sessionId.slice(0, 12)}…</span>
+                  <span style={{ color: "#334155", fontSize: 10, fontFamily: "'SF Mono', ui-monospace, monospace" }}>
+                    {e.sessionId.slice(0, 12)}…
+                  </span>
                 </td>
-                <td className="px-3 py-2 text-right text-xs tabular-nums font-semibold" style={{ color: "#FBBF24" }}>
+                <td style={{ ...tdBase, color: "#FBBF24", fontWeight: 600 }}>
                   {e.requestCount}
                 </td>
-                <td className="px-3 py-2 text-right text-xs tabular-nums" style={{ color: "#60A5FA" }}>
+                <td style={{ ...tdBase, color: "#60A5FA" }}>
                   {e.totalPromptTokens.toLocaleString()}
                 </td>
-                <td className="px-3 py-2 text-right text-xs tabular-nums text-text-secondary">
+                <td style={{ ...tdBase, color: "#94A3B8" }}>
                   {e.totalCompletionTokens.toLocaleString()}
                 </td>
-                <td className="px-3 py-2 text-right text-xs tabular-nums text-text-muted">
+                <td style={{ ...tdBase, color: "#334155" }}>
                   {(e.cacheWriteTokens ?? 0).toLocaleString()}
                 </td>
-                <td className="px-3 py-2 text-right text-xs tabular-nums text-text-muted">
+                <td style={{ ...tdBase, color: "#334155" }}>
                   {(e.cacheHitTokens ?? 0).toLocaleString()}
                 </td>
-                <td className="px-3 py-2 text-right text-xs tabular-nums text-text-muted">
+                <td style={{ ...tdBase, color: "#334155" }}>
                   ${(e.cacheSavingUsd ?? 0).toFixed(4)}
                 </td>
-                <td className="px-3 py-2 text-right text-xs tabular-nums font-mono" style={{ color: "#A78BFA" }}>
+                <td style={{ ...tdBase, color: "#A78BFA", fontSize: 11 }}>
                   {calcBurnRate(e.totalTokens, e.firstTrackedAt, e.lastTrackedAt)}
                 </td>
-                <td className="px-3 py-2 text-right text-xs tabular-nums font-semibold" style={{ color: "#34D399" }}>
+                <td style={{ ...tdBase, color: "#34D399", fontWeight: 600 }}>
                   ${e.totalCostUsd.toFixed(4)}
                 </td>
-                <td className="px-3 py-2 text-xs whitespace-nowrap text-text-muted">
+                <td style={{ ...tdBase, textAlign: "left", fontFamily: "inherit", color: "#475569" }}>
                   {e.sessionCreatedAt ? format(parseISO(e.sessionCreatedAt), "MM/dd HH:mm") : "—"}
                 </td>
               </tr>
@@ -119,27 +162,33 @@ export default function SessionTable({
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-text-muted">
-          <span className="text-xs">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, fontSize: 12, color: "#475569" }}>
+          <span style={{ fontSize: 11 }}>
             {offset + 1}–{Math.min(offset + limit, total)} of {total.toLocaleString()} sessions
           </span>
-          <div className="flex items-center gap-2">
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
               disabled={page === 1}
               onClick={() => onPageChange(Math.max(0, offset - limit))}
-              className="px-3 py-1 rounded bg-surface-2 hover:bg-surface text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs"
+              style={{ padding: "4px 10px", borderRadius: 5, background: "#1B2240", border: "1px solid #252D4A", color: "#94A3B8", fontSize: 11, cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.4 : 1 }}
             >
               ← Prev
             </button>
-            <span className="text-xs">Page {page} / {totalPages}</span>
+            <span style={{ fontSize: 11 }}>Page {page} / {totalPages}</span>
             <button
               disabled={page >= totalPages}
               onClick={() => onPageChange(offset + limit)}
-              className="px-3 py-1 rounded bg-surface-2 hover:bg-surface text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs"
+              style={{ padding: "4px 10px", borderRadius: 5, background: "#1B2240", border: "1px solid #252D4A", color: "#94A3B8", fontSize: 11, cursor: page >= totalPages ? "not-allowed" : "pointer", opacity: page >= totalPages ? 0.4 : 1 }}
             >
               Next →
             </button>
           </div>
+        </div>
+      )}
+
+      {total > 0 && totalPages <= 1 && (
+        <div style={{ marginTop: 8, fontSize: 11, color: "#334155", textAlign: "right" }}>
+          Showing {entries.length} of {total} sessions
         </div>
       )}
     </div>

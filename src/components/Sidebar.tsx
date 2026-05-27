@@ -29,7 +29,7 @@ type NavSection = {
 
 const sections: NavSection[] = [
   {
-    title: "DASHBOARD",
+    title: "Dashboard",
     items: [
       { href: "/", label: "Overview", Icon: Home },
       { href: "/users", label: "Users", Icon: Users },
@@ -41,7 +41,7 @@ const sections: NavSection[] = [
     ],
   },
   {
-    title: "SETTINGS",
+    title: "Settings",
     items: [
       { href: "/settings/roster", label: "Roster", Icon: UsersRound },
       { href: "/settings/releases", label: "Releases", Icon: Tag },
@@ -66,37 +66,43 @@ type Props = {
 export default function Sidebar({ variant, isAdmin, onClose }: Props) {
   const pathname = usePathname();
   const isRail = variant === "rail";
-  const visibleSections = isAdmin ? sections : sections.filter((s) => s.title !== "SETTINGS");
+  const visibleSections = isAdmin ? sections : sections.filter((s) => s.title !== "Settings");
 
   return (
     <aside
-      className={`h-full bg-surface border-r border-border-default flex flex-col ${
-        isRail ? "w-14" : "w-[200px]"
-      }`}
+      className={`h-full flex flex-col`}
+      style={{
+        width: isRail ? 56 : 200,
+        background: "#141A2E",
+        borderRight: "1px solid #252D4A",
+        flexShrink: 0,
+      }}
     >
-      <div className={`border-b border-border-default ${isRail ? "py-3 flex justify-center" : "px-4 py-5"}`}>
+      {/* Logo */}
+      <div style={{ padding: 16, borderBottom: "1px solid #252D4A", display: "flex", alignItems: "center", gap: 8 }}>
         {isRail ? (
-          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
-            <BarChart3 className="w-4 h-4 text-white" />
+          <div style={{ width: 28, height: 28, background: "#3B82F6", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <BarChart3 style={{ width: 14, height: 14, color: "white" }} />
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded bg-primary flex items-center justify-center">
-              <BarChart3 className="w-4 h-4 text-white" />
+          <>
+            <div style={{ width: 28, height: 28, background: "#3B82F6", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <BarChart3 style={{ width: 14, height: 14, color: "white" }} />
             </div>
             <div>
-              <p className="text-text-primary text-sm font-semibold leading-tight">LumiPulse</p>
-              <p className="text-text-secondary text-xs">Token Analytics</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#F1F5F9", lineHeight: 1.2 }}>LumiPulse</p>
+              <p style={{ fontSize: 11, color: "#64748B", lineHeight: 1.2 }}>Token Analytics</p>
             </div>
-          </div>
+          </>
         )}
       </div>
 
-      <nav className={`flex-1 overflow-y-auto py-4 ${isRail ? "px-2 space-y-3" : "px-3 space-y-4"}`}>
+      {/* Nav */}
+      <nav style={{ flex: 1, overflowY: "auto", padding: "12px 10px 4px" }}>
         {visibleSections.map((section) => (
-          <div key={section.title ?? "_default"} className={isRail ? "space-y-1" : "space-y-1"}>
+          <div key={section.title ?? "_default"} style={{ marginBottom: 8 }}>
             {!isRail && section.title && (
-              <p className="px-3 py-1 text-[10px] font-semibold tracking-wider text-text-muted uppercase">
+              <p style={{ fontSize: 10, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 8px", marginBottom: 4 }}>
                 {section.title}
               </p>
             )}
@@ -104,22 +110,26 @@ export default function Sidebar({ variant, isAdmin, onClose }: Props) {
               const active = isItemActive(item.href, pathname);
               if (isRail) {
                 return (
-                  <div key={item.href} className="relative group">
+                  <div key={item.href} className="relative group" style={{ marginBottom: 2 }}>
                     <Link
                       href={item.href}
                       onClick={onClose}
                       aria-label={item.label}
-                      className={`flex items-center justify-center w-9 h-9 mx-auto rounded-lg transition-colors ${
-                        active
-                          ? "bg-primary/15 text-primary"
-                          : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
-                      }`}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        width: 36, height: 36, margin: "0 auto", borderRadius: 6,
+                        color: active ? "#3B82F6" : "#64748B",
+                        background: active ? "rgba(59,130,246,0.15)" : "transparent",
+                        transition: "all 0.15s",
+                      }}
+                      className={!active ? "hover:!bg-[#1B2240] hover:!text-[#94A3B8]" : ""}
                     >
-                      <item.Icon className="w-4 h-4" />
+                      <item.Icon style={{ width: 16, height: 16 }} />
                     </Link>
                     <span
                       role="tooltip"
-                      className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-surface-2 border border-border-default rounded text-xs text-text-primary whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50"
+                      className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50"
+                      style={{ background: "#1B2240", border: "1px solid #252D4A", color: "#F1F5F9" }}
                     >
                       {item.label}
                     </span>
@@ -131,21 +141,25 @@ export default function Sidebar({ variant, isAdmin, onClose }: Props) {
                   key={item.href}
                   href={item.href}
                   onClick={onClose}
-                  className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] transition-colors ${
-                    active
-                      ? "bg-primary/15 text-primary"
-                      : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
-                  }`}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "7px 10px", borderRadius: 6,
+                    fontSize: 13, color: active ? "#3B82F6" : "#64748B",
+                    background: active ? "rgba(59,130,246,0.15)" : "transparent",
+                    transition: "all 0.15s",
+                    textDecoration: "none",
+                    marginBottom: 2,
+                  }}
+                  className={!active ? "hover:!bg-[#1B2240] hover:!text-[#94A3B8]" : ""}
                 >
-                  <item.Icon className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{item.label}</span>
+                  <item.Icon style={{ width: 16, height: 16, opacity: 0.8, flexShrink: 0 }} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
                 </Link>
               );
             })}
           </div>
         ))}
       </nav>
-
     </aside>
   );
 }
