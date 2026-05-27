@@ -13,6 +13,39 @@ interface Props {
   onPageChange: (offset: number) => void;
 }
 
+function shortModelName(model: string): string {
+  // "z-ai/glm-5-turbo" → "glm-5-turbo"
+  const slash = model.lastIndexOf("/");
+  return slash >= 0 ? model.slice(slash + 1) : model;
+}
+
+function ModelBadges({ models }: { models?: string[] }) {
+  if (!models?.length) return null;
+  return (
+    <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 4, marginTop: 3 }}>
+      {models.map((m) => (
+        <span
+          key={m}
+          title={m}
+          style={{
+            display: "inline-block",
+            fontSize: 9,
+            fontFamily: "'SF Mono', ui-monospace, monospace",
+            color: "#94A3B8",
+            background: "rgba(148,163,184,0.08)",
+            border: "1px solid rgba(148,163,184,0.15)",
+            padding: "1px 5px",
+            borderRadius: 3,
+            letterSpacing: "0.02em",
+          }}
+        >
+          {shortModelName(m)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function calcBurnRate(
   totalTokens: number,
   firstTrackedAt: string,
@@ -127,6 +160,7 @@ export default function SessionTable({ entries, total, limit, offset, userId, on
                   <span style={{ color: "#334155", fontSize: 10, fontFamily: "'SF Mono', ui-monospace, monospace" }}>
                     {e.sessionId.slice(0, 12)}…
                   </span>
+                  <ModelBadges models={e.models} />
                 </td>
                 <td style={{ ...tdBase, color: "#FBBF24", fontWeight: 600 }}>
                   {e.requestCount}
