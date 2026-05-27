@@ -1,4 +1,9 @@
-import { UserCostSummary, HistoryData, SessionMessagesResponse, MessageCostDetail, SessionMessageEntry, UserSessionsData } from "@/types";
+import { UserCostSummary, HistoryData, SessionMessagesResponse, MessageCostDetail, SessionMessageEntry, UserSessionsData, DailyEntry } from "@/types";
+
+export interface CostComparison {
+  current: UserCostSummary;
+  previous: UserCostSummary;
+}
 
 // Tất cả API calls đi qua proxy — token được quản lý hoàn toàn server-side
 const PROXY = "/api/proxy";
@@ -23,6 +28,52 @@ export async function getUserCost(
   if (to) params.set("to", to);
   const qs = params.toString();
   return apiFetch(`api/v1/normal-mode/costs/user/${userId}${qs ? `?${qs}` : ""}`);
+}
+
+export async function getUserCostComparison(
+  userId: number,
+  from: string,
+  to: string
+): Promise<CostComparison> {
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const periodMs = toDate.getTime() - fromDate.getTime();
+  const prevFrom = new Date(fromDate.getTime() - periodMs).toISOString().slice(0, 10);
+  const prevTo = from;
+
+  const [current, previous] = await Promise.all([
+    getUserCost(userId, from, to),
+    getUserCost(userId, prevFrom, prevTo),
+  ]);
+  return { current, previous };
+}
+
+export async function getDailyBreakdown(
+  userId: number,
+  from: string,
+  to: string
+): Promise<DailyEntry[]> {
+  const data = await getHistory({ userId, from, to, limit: 500, offset: 0 });
+
+  const byDate = new Map<string, DailyEntry>();
+  for (const entry of data.entries) {
+    const date = entry.createdAt.slice(0, 10);
+    const existing = byDate.get(date);
+    if (existing) {
+      existing.totalTokens += entry.totalTokens;
+      existing.totalCostUsd += entry.totalCostUsd;
+      existing.requestCount += 1;
+    } else {
+      byDate.set(date, {
+        date,
+        totalTokens: entry.totalTokens,
+        totalCostUsd: entry.totalCostUsd,
+        requestCount: 1,
+      });
+    }
+  }
+
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export async function getHistory(params: {
@@ -95,4 +146,14 @@ export async function getSessionMessages(
     hasPrev: payload.offset > 0,
   };
   return { data: payload.entries, pagination };
+}
+
+export function computeAlertThreshold(dailyEntries: DailyEntry[]): number | null {
+  if (dailyEntries.length < 7) return null;
+  const costs = dailyEntries.map((e) => e.totalCostUsd).sort((a, b) => a - b);
+  const mid = Math.floor(costs.length / 2);
+  const median = costs.length % 2 === 0
+    ? (costs[mid - 1] + costs[mid]) / 2
+    : costs[mid];
+  return median * 2;
 }
