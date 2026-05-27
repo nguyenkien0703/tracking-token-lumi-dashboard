@@ -1,7 +1,13 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { format, subDays } from "date-fns";
 import { DateRange } from "@/types";
+
+function defaultRange(): DateRange {
+  const today = new Date();
+  return { from: format(subDays(today, 7), "yyyy-MM-dd"), to: format(today, "yyyy-MM-dd") };
+}
 
 export type BreadcrumbItem = { label: string; href?: string };
 
@@ -22,7 +28,7 @@ const TopBarContext = createContext<TopBarContextValue | null>(null);
 
 export function TopBarProvider({ children }: { children: ReactNode }) {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([]);
-  const [dateRange, setDateRangeState] = useState<DateRange>({ from: "", to: "" });
+  const [dateRange, setDateRangeState] = useState<DateRange>(defaultRange);
   const [activePeriod, setActivePeriod] = useState("7d");
   const [showDatePicker, setShowDatePicker] = useState(false);
 
