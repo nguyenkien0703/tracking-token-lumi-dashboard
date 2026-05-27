@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Lock } from "lucide-react";
 
 export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
@@ -39,15 +39,16 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 w-full max-w-sm space-y-6">
+      <div className="bg-surface border border-border-default rounded-2xl p-8 w-full max-w-sm space-y-6">
         <div>
-          <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center mb-4">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+          <div
+            className="w-11 h-11 rounded-[10px] flex items-center justify-center mb-4 text-white"
+            style={{ background: "linear-gradient(135deg, #3B82F6, #6366F1)" }}
+          >
+            <Lock className="w-5 h-5" />
           </div>
-          <h1 className="text-xl font-bold text-slate-100">Admin Access</h1>
-          <p className="text-slate-400 text-sm mt-1">Enter password to continue</p>
+          <h1 className="text-xl font-bold text-text-primary">Admin Access</h1>
+          <p className="text-text-secondary text-sm mt-1">Enter password to continue</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -58,12 +59,12 @@ export default function AdminLoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
               autoFocus
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 pr-10 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full bg-surface-2 border border-border-default rounded-lg px-4 py-2.5 pr-10 text-text-primary placeholder:text-text-muted text-sm focus:outline-none focus:border-primary transition-colors"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
               tabIndex={-1}
             >
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -71,13 +72,13 @@ export default function AdminLoginPage() {
           </div>
 
           {error && (
-            <p className="text-red-400 text-sm">{error}</p>
+            <p className="text-danger text-sm">{error}</p>
           )}
 
           <button
             type="submit"
             disabled={loading || !password}
-            className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+            className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm font-medium transition-colors"
           >
             {loading ? "Verifying..." : "Enter"}
           </button>

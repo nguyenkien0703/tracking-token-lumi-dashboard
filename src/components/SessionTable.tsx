@@ -13,6 +13,42 @@ interface Props {
   onPageChange: (offset: number) => void;
 }
 
+function shortModelName(model: string): string {
+  // "z-ai/glm-5-turbo" → "glm-5-turbo"
+  const slash = model.lastIndexOf("/");
+  return slash >= 0 ? model.slice(slash + 1) : model;
+}
+
+function ModelCell({ models }: { models?: string[] }) {
+  if (!models?.length) {
+    return <span style={{ color: "#334155" }}>—</span>;
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+      {models.map((m) => (
+        <span
+          key={m}
+          title={m}
+          style={{
+            display: "inline-block",
+            fontSize: 10,
+            fontFamily: "'SF Mono', ui-monospace, monospace",
+            color: "#94A3B8",
+            background: "rgba(148,163,184,0.08)",
+            border: "1px solid rgba(148,163,184,0.15)",
+            padding: "2px 6px",
+            borderRadius: 4,
+            letterSpacing: "0.02em",
+            lineHeight: 1.2,
+          }}
+        >
+          {shortModelName(m)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function calcBurnRate(
   totalTokens: number,
   firstTrackedAt: string,
@@ -69,6 +105,10 @@ export default function SessionTable({ entries, total, limit, offset, userId, on
             <tr style={{ background: "rgba(255,255,255,0.04)" }}>
               <th style={{ ...thStyle, width: 32, textAlign: "center" }}>#</th>
               <th style={{ ...thStyle, textAlign: "left", minWidth: 180 }}>Title</th>
+              <th style={{ ...thStyle, textAlign: "left", minWidth: 110 }}>
+                Models
+                <Badge text="NEW" color="#60A5FA" bg="rgba(59,130,246,0.2)" border="rgba(59,130,246,0.3)" />
+              </th>
               <th style={thStyle}>
                 Turns
                 <Badge text="RENAMED" color="#6EE7B7" bg="rgba(16,185,129,0.15)" border="rgba(16,185,129,0.2)" />
@@ -104,7 +144,7 @@ export default function SessionTable({ entries, total, limit, offset, userId, on
           <tbody>
             {entries.length === 0 && (
               <tr>
-                <td colSpan={11} style={{ ...tdBase, textAlign: "center", padding: "40px 10px", color: "#475569" }}>
+                <td colSpan={12} style={{ ...tdBase, textAlign: "center", padding: "40px 10px", color: "#475569" }}>
                   No sessions found
                 </td>
               </tr>
@@ -127,6 +167,9 @@ export default function SessionTable({ entries, total, limit, offset, userId, on
                   <span style={{ color: "#334155", fontSize: 10, fontFamily: "'SF Mono', ui-monospace, monospace" }}>
                     {e.sessionId.slice(0, 12)}…
                   </span>
+                </td>
+                <td style={{ ...tdBase, textAlign: "left", fontFamily: "inherit", verticalAlign: "top" }}>
+                  <ModelCell models={e.models} />
                 </td>
                 <td style={{ ...tdBase, color: "#FBBF24", fontWeight: 600 }}>
                   {e.requestCount}

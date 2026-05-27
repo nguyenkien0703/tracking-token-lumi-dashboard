@@ -2,6 +2,7 @@
 
 import { DailyEntry } from "@/types";
 import { format, parseISO } from "date-fns";
+import { useState } from "react";
 
 interface Props {
   entries: DailyEntry[];
@@ -27,6 +28,8 @@ const VB_H = 120;
 const BASELINE = 119;
 
 export default function TokenLineChart({ entries }: Props) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
   if (entries.length === 0) {
     return (
       <div style={{ height: 140, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }}>
@@ -132,7 +135,77 @@ export default function TokenLineChart({ entries }: Props) {
             {entries.map((e, i) => (
               <circle key={`c-${i}`} cx={xOf(i)} cy={yCost(e.totalCostUsd)} r="2.5" fill="#10B981" opacity="0.85" />
             ))}
+
+            {/* Hover guide line */}
+            {hoveredIndex !== null && (
+              <line
+                x1={xOf(hoveredIndex)}
+                y1={0}
+                x2={xOf(hoveredIndex)}
+                y2={BASELINE}
+                stroke="#64748B"
+                strokeWidth="1"
+                strokeDasharray="3,3"
+                vectorEffect="non-scaling-stroke"
+                opacity="0.6"
+              />
+            )}
+
+            {/* Invisible hit-area circles for hover */}
+            {entries.map((e, i) => (
+              <circle
+                key={`hit-${i}`}
+                cx={xOf(i)}
+                cy={(yTokens(e.totalTokens) + yCost(e.totalCostUsd)) / 2}
+                r="14"
+                fill="transparent"
+                style={{ cursor: "pointer", pointerEvents: "all" }}
+                onMouseEnter={() => setHoveredIndex(i)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              />
+            ))}
           </svg>
+
+          {/* Tooltip */}
+          {hoveredIndex !== null && (() => {
+            const e = entries[hoveredIndex];
+            const leftPct = n === 1 ? 50 : (hoveredIndex / (n - 1)) * 100;
+            const isRightHalf = leftPct > 60;
+            return (
+              <div
+                style={{
+                  position: "absolute",
+                  left: `${leftPct}%`,
+                  top: 4,
+                  transform: isRightHalf ? "translateX(-100%) translateX(-8px)" : "translateX(8px)",
+                  background: "#1E293B",
+                  border: "1px solid #334155",
+                  borderRadius: 6,
+                  padding: "8px 10px",
+                  fontSize: 11,
+                  color: "#E2E8F0",
+                  pointerEvents: "none",
+                  zIndex: 10,
+                  whiteSpace: "nowrap",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 4, color: "#F1F5F9" }}>
+                  {format(parseISO(e.date), "MM/dd")}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#3B82F6" }} />
+                  <span style={{ color: "#94A3B8" }}>Tokens:</span>
+                  <span style={{ fontFamily: "ui-monospace, monospace" }}>{e.totalTokens.toLocaleString()}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981" }} />
+                  <span style={{ color: "#94A3B8" }}>Cost:</span>
+                  <span style={{ fontFamily: "ui-monospace, monospace" }}>${e.totalCostUsd.toFixed(4)}</span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* X-axis labels */}
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "space-between", fontSize: 10, color: "#475569" }}>

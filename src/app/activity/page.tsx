@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Activity } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart, Line,
@@ -12,6 +12,8 @@ import {
 import type { Segment } from "@/lib/segment";
 import SegmentTabs from "@/components/SegmentTabs";
 import StatCard from "@/components/StatCard";
+import PageHeader from "@/components/ui/PageHeader";
+import RefreshButton from "@/components/ui/RefreshButton";
 
 // Hex equivalents of design tokens — recharts can't read CSS vars at SSR.
 const CHART_COLORS = {
@@ -103,42 +105,33 @@ export default function ActivityPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-text-primary">Activity Trends</h1>
-          <p className="text-sm text-text-secondary mt-1">
-            Daily active users, turns, and new joiners.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="bg-surface border border-border-default rounded-lg overflow-hidden inline-flex">
-            {RANGES.map((r) => (
-              <button
-                key={r.value}
-                onClick={() => setDays(r.value)}
-                aria-pressed={days === r.value}
-                className={`px-3 py-1.5 text-sm transition-colors ${
-                  days === r.value
-                    ? "bg-primary text-white"
-                    : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={fetchData}
-            disabled={loading}
-            aria-busy={loading}
-            aria-label={loading ? "Refreshing activity data" : "Refresh activity data"}
-            className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm transition-colors flex items-center gap-1.5"
-          >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            Refresh
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Activity className="w-5 h-5" />}
+        iconGradient="green"
+        title="Activity Trends"
+        subtitle="Daily active users, turns, and new joiners."
+        actions={
+          <>
+            <div className="bg-surface border border-border-default rounded-lg overflow-hidden inline-flex">
+              {RANGES.map((r) => (
+                <button
+                  key={r.value}
+                  onClick={() => setDays(r.value)}
+                  aria-pressed={days === r.value}
+                  className={`px-3 py-1.5 text-sm transition-colors ${
+                    days === r.value
+                      ? "bg-primary text-white"
+                      : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <RefreshButton onClick={fetchData} loading={loading} />
+          </>
+        }
+      />
 
       <SegmentTabs value={segment} onChange={setSegment} />
 

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Rocket } from "lucide-react";
+import PageHeader from "@/components/ui/PageHeader";
 
 type Release = {
   id: number;
@@ -95,67 +97,70 @@ export default function ReleasesSettingsPage() {
     fetchReleases();
   };
 
+  const inputClass =
+    "w-full bg-surface-2 border border-border-default rounded px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary";
+
   return (
     <div className="space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-100">Releases</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Định nghĩa các đợt rollout LumiAI cho Savameta. Dùng để compute "New joiners by release".
-        </p>
-      </div>
+      <PageHeader
+        icon={<Rocket className="w-5 h-5" />}
+        iconGradient="amber"
+        title="Releases"
+        subtitle='Định nghĩa các đợt rollout LumiAI cho Savameta. Dùng để compute "New joiners by release".'
+      />
 
-      <section className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-        <h2 className="text-sm font-semibold text-slate-200 mb-4">
+      <section className="bg-surface border border-border-default rounded-[10px] p-4">
+        <h2 className="text-sm font-semibold text-text-primary mb-4">
           {editingId !== null ? `Edit Release #${editingId}` : "Add new release"}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Name *</label>
+              <label className="block text-xs text-text-secondary mb-1">Name *</label>
               <input
                 type="text"
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="Release 3"
-                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Start date *</label>
+              <label className="block text-xs text-text-secondary mb-1">Start date *</label>
               <input
                 type="date"
                 required
                 value={form.start_date}
                 onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">End date (optional)</label>
+              <label className="block text-xs text-text-secondary mb-1">End date (optional)</label>
               <input
                 type="date"
                 value={form.end_date}
                 onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                className={inputClass}
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Notes</label>
+            <label className="block text-xs text-text-secondary mb-1">Notes</label>
             <textarea
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 h-16"
+              className={`${inputClass} h-16`}
             />
           </div>
           {error && (
-            <div className="bg-red-900/40 border border-red-700 text-red-200 text-sm rounded p-2">{error}</div>
+            <div className="bg-danger/10 border border-danger/40 text-danger text-sm rounded p-2">{error}</div>
           )}
           <div className="flex gap-2">
             <button
               type="submit"
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 py-1.5 rounded"
+              className="bg-primary hover:bg-primary/90 text-white text-sm px-3 py-1.5 rounded transition-colors"
             >
               {editingId !== null ? "Update" : "Add"}
             </button>
@@ -163,7 +168,7 @@ export default function ReleasesSettingsPage() {
               <button
                 type="button"
                 onClick={resetForm}
-                className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm px-3 py-1.5 rounded"
+                className="bg-surface-2 hover:bg-surface-2/80 border border-border-default text-text-secondary text-sm px-3 py-1.5 rounded transition-colors"
               >
                 Cancel
               </button>
@@ -172,13 +177,13 @@ export default function ReleasesSettingsPage() {
         </form>
       </section>
 
-      <section className="bg-slate-800 border border-slate-700 rounded-lg">
-        <div className="p-4 border-b border-slate-700">
-          <h2 className="text-sm font-semibold text-slate-200">All Releases ({releases.length})</h2>
+      <section className="bg-surface border border-border-default rounded-[10px]">
+        <div className="p-4 border-b border-border-default">
+          <h2 className="text-sm font-semibold text-text-primary">All Releases ({releases.length})</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-xs text-slate-400 uppercase border-b border-slate-700">
+            <thead className="text-xs text-text-secondary uppercase border-b border-border-default">
               <tr>
                 <th className="text-left px-4 py-2">Name</th>
                 <th className="text-left px-4 py-2">Start</th>
@@ -189,19 +194,19 @@ export default function ReleasesSettingsPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-500">Loading...</td></tr>
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-text-muted">Loading...</td></tr>
               ) : releases.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-500">No releases yet</td></tr>
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-text-muted">No releases yet</td></tr>
               ) : (
                 releases.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                    <td className="px-4 py-2 text-slate-200 font-medium">{r.name}</td>
-                    <td className="px-4 py-2 text-slate-300">{r.start_date}</td>
-                    <td className="px-4 py-2 text-slate-300">{r.end_date ?? <span className="text-emerald-400">ongoing</span>}</td>
-                    <td className="px-4 py-2 text-slate-400 text-xs truncate max-w-xs">{r.notes ?? "-"}</td>
+                  <tr key={r.id} className="border-b border-border-default/50 hover:bg-surface-2/40">
+                    <td className="px-4 py-2 text-text-primary font-medium">{r.name}</td>
+                    <td className="px-4 py-2 text-text-secondary">{r.start_date}</td>
+                    <td className="px-4 py-2 text-text-secondary">{r.end_date ?? <span className="text-success">ongoing</span>}</td>
+                    <td className="px-4 py-2 text-text-muted text-xs truncate max-w-xs">{r.notes ?? "-"}</td>
                     <td className="px-4 py-2 text-right space-x-3">
-                      <button onClick={() => handleEdit(r)} className="text-indigo-400 hover:text-indigo-300 text-xs">Edit</button>
-                      <button onClick={() => handleDelete(r.id, r.name)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                      <button onClick={() => handleEdit(r)} className="text-primary hover:text-primary/80 text-xs">Edit</button>
+                      <button onClick={() => handleDelete(r.id, r.name)} className="text-danger hover:text-danger/80 text-xs">Delete</button>
                     </td>
                   </tr>
                 ))

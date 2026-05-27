@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronDown, Loader2, Trash2, Users } from "lucide-react";
 import { fmtInt } from "@/lib/format";
 import ResponsiveTable, { type Column } from "@/components/ResponsiveTable";
+import PageHeader from "@/components/ui/PageHeader";
+import RefreshButton from "@/components/ui/RefreshButton";
 
 type RosterEntry = {
   email: string;
@@ -264,31 +266,12 @@ export default function RosterSettingsPage() {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-text-primary">Employee Roster</h1>
-          <p className="text-sm text-text-secondary mt-1">
-            Danh sách nhân sự eligible cho LumiAI adoption tracking. Dùng để compute
-            "Never-joined" và Adoption rate.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => fetchRoster(search)}
-          disabled={loading}
-          aria-busy={loading}
-          aria-label={loading ? "Refreshing roster" : "Refresh roster"}
-          className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm transition-colors flex items-center gap-1.5"
-        >
-          {loading ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="w-3.5 h-3.5" />
-          )}
-          Refresh
-        </button>
-      </div>
+      <PageHeader
+        icon={<Users className="w-5 h-5" />}
+        title="Employee Roster"
+        subtitle={'Danh sách nhân sự eligible cho LumiAI adoption tracking. Dùng để compute "Never-joined" và Adoption rate.'}
+        actions={<RefreshButton onClick={() => fetchRoster(search)} loading={loading} />}
+      />
 
       {/* Import section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

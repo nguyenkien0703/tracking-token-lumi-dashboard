@@ -1,12 +1,14 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Hourglass, Loader2, RefreshCw } from "lucide-react";
+import { Hourglass } from "lucide-react";
 import type { Segment } from "@/lib/segment";
 import SegmentTabs from "@/components/SegmentTabs";
 import StatCard from "@/components/StatCard";
 import EmptyState from "@/components/EmptyState";
 import ResponsiveTable, { type Column } from "@/components/ResponsiveTable";
 import UserCell from "@/components/UserCell";
+import PageHeader from "@/components/ui/PageHeader";
+import RefreshButton from "@/components/ui/RefreshButton";
 import { fmtInt } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
 
@@ -144,25 +146,13 @@ export default function EngagementPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-text-primary">Engagement</h1>
-          <p className="text-sm text-text-secondary mt-1">
-            Conversations, turns, token usage, cost per daily-active user.
-          </p>
-        </div>
-        <button
-          onClick={fetchAll}
-          disabled={loading}
-          aria-busy={loading}
-          aria-label={loading ? "Refreshing engagement data" : "Refresh engagement data"}
-          className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm transition-colors flex items-center gap-1.5"
-        >
-          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          Refresh
-        </button>
-      </div>
+      <PageHeader
+        icon={<Hourglass className="w-5 h-5" />}
+        iconGradient="amber"
+        title="Engagement"
+        subtitle="Conversations, turns, token usage, cost per daily-active user."
+        actions={<RefreshButton onClick={fetchAll} loading={loading} />}
+      />
 
       {/* Segment tabs */}
       <SegmentTabs value={segment} onChange={setSegment} />

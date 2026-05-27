@@ -59,6 +59,7 @@ export interface UserSessionEntry {
   requestCount: number;
   firstTrackedAt: string;
   lastTrackedAt: string;
+  models?: string[];
   // BE pending — hiển thị 0 khi null
   cacheWriteTokens?: number | null;
   cacheHitTokens?: number | null;
@@ -111,6 +112,7 @@ export interface SessionMessageEntry {
   requestCount: number;
   firstTrackedAt: string;
   lastTrackedAt: string;
+  models?: string[];
 }
 
 export interface SessionMessagesPagination {

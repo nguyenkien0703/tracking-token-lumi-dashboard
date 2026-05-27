@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { Users, Coins, DollarSign, Clock, UserPlus, RefreshCw, Loader2 } from "lucide-react";
+import { Users, Coins, DollarSign, Clock, UserPlus } from "lucide-react";
 import { Segment, SEGMENT_LABELS } from "@/lib/segment";
 import SegmentTabs from "@/components/SegmentTabs";
 import StatCard from "@/components/StatCard";
@@ -10,6 +10,8 @@ import EmptyState from "@/components/EmptyState";
 import PeriodChip, { PeriodValue } from "@/components/PeriodChip";
 import ResponsiveTable, { Column } from "@/components/ResponsiveTable";
 import UserSearch from "@/components/UserSearch";
+import PageHeader from "@/components/ui/PageHeader";
+import RefreshButton from "@/components/ui/RefreshButton";
 import { fmtInt, fmtUsd, derivePeriod, periodLabel } from "@/lib/format";
 import { usePageSetup } from "@/lib/use-page-setup";
 
@@ -235,29 +237,20 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Overview</h1>
-          <p className="text-text-secondary text-sm mt-0.5">
-            {SEGMENT_LABELS[segment].label} · {periodLabel(period)}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <PeriodChip value={period} onChange={setPeriod} />
-          <button
-            type="button"
-            onClick={() => { loadData(); setCountdown(REFRESH_INTERVAL); }}
-            disabled={loading}
-            aria-busy={loading}
-            aria-label={loading ? "Refreshing data" : "Refresh data"}
-            className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm transition-colors flex items-center gap-1.5"
-          >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            Refresh
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Coins className="w-5 h-5" />}
+        title="Overview"
+        subtitle={`${SEGMENT_LABELS[segment].label} · ${periodLabel(period)}`}
+        actions={
+          <>
+            <PeriodChip value={period} onChange={setPeriod} />
+            <RefreshButton
+              onClick={() => { loadData(); setCountdown(REFRESH_INTERVAL); }}
+              loading={loading}
+            />
+          </>
+        }
+      />
 
       {/* Segment + Search row */}
       <div className="flex flex-wrap items-center gap-3">

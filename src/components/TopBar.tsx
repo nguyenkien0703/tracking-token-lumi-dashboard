@@ -25,14 +25,35 @@ function periodToRange(period: Period): DateRange {
   }
 }
 
-function formatDateDisplay(dateStr: string): string {
-  if (!dateStr) return "—";
-  const [y, m, d] = dateStr.split("-");
-  return `${m}/${d}/${y}`;
-}
+const dateInputStyle: React.CSSProperties = {
+  background: "transparent",
+  border: "none",
+  outline: "none",
+  color: "#94A3B8",
+  fontSize: 12,
+  fontFamily: "'SF Mono', ui-monospace, monospace",
+  cursor: "pointer",
+  padding: 0,
+  colorScheme: "dark",
+  width: 110,
+};
 
 export default function TopBar() {
   const { breadcrumbs, showDatePicker, dateRange, activePeriod, setDateRange } = useTopBar();
+
+  const onFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value;
+    if (!next) return;
+    const to = next > dateRange.to ? next : dateRange.to;
+    setDateRange({ from: next, to }, "custom");
+  };
+
+  const onToChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value;
+    if (!next) return;
+    const from = next < dateRange.from ? next : dateRange.from;
+    setDateRange({ from, to: next }, "custom");
+  };
 
   return (
     <div style={{
@@ -81,12 +102,27 @@ export default function TopBar() {
           </div>
           <div style={{
             display: "flex", alignItems: "center", gap: 8,
-            padding: "6px 12px", background: "#141A2E", border: "1px solid #252D4A", borderRadius: 7,
-            fontSize: 12, color: "#94A3B8",
+            padding: "6px 12px", background: "#141A2E",
+            border: `1px solid ${activePeriod === "custom" ? "#3B82F6" : "#252D4A"}`,
+            borderRadius: 7,
           }}>
-            <span>{formatDateDisplay(dateRange.from)}</span>
-            <span style={{ color: "#334155" }}>→</span>
-            <span>{formatDateDisplay(dateRange.to)}</span>
+            <input
+              type="date"
+              value={dateRange.from}
+              max={dateRange.to || undefined}
+              onChange={onFromChange}
+              style={dateInputStyle}
+              aria-label="From date"
+            />
+            <span style={{ color: "#334155", fontSize: 12 }}>→</span>
+            <input
+              type="date"
+              value={dateRange.to}
+              min={dateRange.from || undefined}
+              onChange={onToChange}
+              style={dateInputStyle}
+              aria-label="To date"
+            />
           </div>
         </div>
       )}
