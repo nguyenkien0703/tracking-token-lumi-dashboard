@@ -59,12 +59,14 @@ function isItemActive(itemHref: string, pathname: string): boolean {
 
 type Props = {
   variant: "rail" | "full";
+  isAdmin?: boolean;
   onClose?: () => void;
 };
 
-export default function Sidebar({ variant, onClose }: Props) {
+export default function Sidebar({ variant, isAdmin, onClose }: Props) {
   const pathname = usePathname();
   const isRail = variant === "rail";
+  const visibleSections = isAdmin ? sections : sections.filter((s) => s.title !== "SETTINGS");
 
   return (
     <aside
@@ -91,7 +93,7 @@ export default function Sidebar({ variant, onClose }: Props) {
       </div>
 
       <nav className={`flex-1 overflow-y-auto py-4 ${isRail ? "px-2 space-y-3" : "px-3 space-y-4"}`}>
-        {sections.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.title ?? "_default"} className={isRail ? "space-y-1" : "space-y-1"}>
             {!isRail && section.title && (
               <p className="px-3 py-1 text-[10px] font-semibold tracking-wider text-text-muted uppercase">
@@ -144,13 +146,6 @@ export default function Sidebar({ variant, onClose }: Props) {
         ))}
       </nav>
 
-      {!isRail && (
-        <div className="px-4 py-3 border-t border-border-default">
-          <p className="text-text-muted text-xs truncate">
-            {process.env.NEXT_PUBLIC_API_BASE_URL || "API URL not set"}
-          </p>
-        </div>
-      )}
     </aside>
   );
 }

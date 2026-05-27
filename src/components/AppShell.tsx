@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+export default function AppShell({ children, isAdmin }: { children: React.ReactNode; isAdmin?: boolean }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
@@ -22,17 +22,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         className={`fixed left-0 top-0 h-full z-30 transition-transform duration-200 md:hidden
           ${drawerOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
-        <Sidebar variant="full" onClose={() => setDrawerOpen(false)} />
+        <Sidebar variant="full" isAdmin={isAdmin} onClose={() => setDrawerOpen(false)} />
       </div>
 
       {/* Tablet: icon rail */}
       <div className="hidden md:flex lg:hidden fixed left-0 top-0 h-full z-10">
-        <Sidebar variant="rail" />
+        <Sidebar variant="rail" isAdmin={isAdmin} />
       </div>
 
       {/* Desktop: full sidebar */}
       <div className="hidden lg:flex fixed left-0 top-0 h-full z-10">
-        <Sidebar variant="full" />
+        <Sidebar variant="full" isAdmin={isAdmin} />
       </div>
 
       {/* Mobile top bar */}

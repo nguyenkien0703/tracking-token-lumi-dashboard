@@ -9,7 +9,7 @@ import ResponsiveTable, { type Column } from "@/components/ResponsiveTable";
 import EmptyState from "@/components/EmptyState";
 import { downloadCsv } from "@/lib/csv";
 
-type Tab = "returning" | "first-value" | "first-resolution";
+type Tab = "returning" | "first-value";
 
 type ReturningUser = {
   email: string;
@@ -207,7 +207,7 @@ export default function TriggersPage() {
         <button
           type="button"
           onClick={handleRefresh}
-          disabled={loading || activeTab === "first-resolution"}
+          disabled={loading}
           aria-busy={loading}
           aria-label={loading ? "Refreshing triggers data" : "Refresh triggers data"}
           className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm transition-colors flex items-center gap-1.5"
@@ -265,23 +265,6 @@ export default function TriggersPage() {
             tone={activeTab === "first-value" ? "success" : "default"}
           />
         </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("first-resolution")}
-          aria-current={activeTab === "first-resolution" ? "true" : undefined}
-          className={`text-left transition-all ${
-            activeTab === "first-resolution"
-              ? "ring-2 ring-primary ring-offset-2 ring-offset-surface rounded-xl"
-              : ""
-          }`}
-        >
-          <StatCard
-            label="First Resolution"
-            value="—"
-            hint="BA chưa define"
-            tone="warning"
-          />
-        </button>
       </div>
 
       {/* Tab section */}
@@ -318,21 +301,6 @@ export default function TriggersPage() {
               }`}
             >
               First Value
-            </button>
-            <button
-              type="button"
-              role="tab"
-              id="triggers-tab-first-resolution"
-              aria-selected={activeTab === "first-resolution"}
-              aria-controls="triggers-panel-first-resolution"
-              onClick={() => setActiveTab("first-resolution")}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "first-resolution"
-                  ? "border-primary text-text-primary"
-                  : "border-transparent text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              First Resolution
             </button>
           </div>
 
@@ -418,17 +386,6 @@ export default function TriggersPage() {
           </div>
         )}
 
-        {activeTab === "first-resolution" && (
-          <div role="tabpanel" id="triggers-panel-first-resolution" aria-labelledby="triggers-tab-first-resolution">
-            <div className="p-6">
-              <EmptyState
-                icon={<Hourglass className="w-5 h-5" />}
-                title="First Resolution not yet defined"
-                description="BA cần xác định event nào = resolution (ví dụ: user feedback resolved, conversation ended với tag, hoặc detect bằng survey response). Khi có spec, mình implement."
-              />
-            </div>
-          </div>
-        )}
       </section>
     </div>
   );

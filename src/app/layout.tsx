@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { cookies } from "next/headers";
+import { createHash } from "crypto";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
 
@@ -28,11 +30,19 @@ export const metadata: Metadata = {
   description: "DevOps monitoring dashboard for LumiLink token usage",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+function hashPassword(password: string): string {
+  return createHash("sha256").update(password).digest("hex");
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const adminPassword = process.env.ADMIN_PANEL_PASSWORD ?? "";
+  const sessionCookie = (await cookies()).get("admin_session")?.value ?? "";
+  const isAdmin = adminPassword !== "" && sessionCookie === hashPassword(adminPassword);
+
   return (
     <html lang="en" className={`${body.variable} ${heading.variable} ${mono.variable}`}>
       <body>
-        <AppShell>{children}</AppShell>
+        <AppShell isAdmin={isAdmin}>{children}</AppShell>
       </body>
     </html>
   );

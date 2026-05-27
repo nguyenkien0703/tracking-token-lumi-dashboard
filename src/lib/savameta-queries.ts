@@ -69,6 +69,7 @@ export async function getAdoptionSummary(): Promise<AdoptionSummary> {
     FROM employee_roster r
     INNER JOIN users u ON LOWER(u.email) = LOWER(r.email)
     WHERE u.email NOT LIKE '%@anon.lumilink'
+      AND u.last_active_at IS NOT NULL
   `);
   const joined = Number(joinedRes.rows[0]?.joined ?? 0);
   const dailyActive7d = await countDailyActiveUsers7d("savameta");
@@ -110,6 +111,7 @@ export async function listJoinedUsers(): Promise<JoinedUser[]> {
     FROM employee_roster r
     INNER JOIN users u ON LOWER(u.email) = LOWER(r.email)
     WHERE u.email NOT LIKE '%@anon.lumilink'
+      AND u.last_active_at IS NOT NULL
     ORDER BY u.last_active_at DESC NULLS LAST
   `);
   return rows;
@@ -134,6 +136,7 @@ export async function listNeverJoinedUsers(): Promise<NeverJoinedUser[]> {
     LEFT JOIN users u ON LOWER(u.email) = LOWER(r.email)
       AND u.email NOT LIKE '%@anon.lumilink'
     WHERE u."userId" IS NULL
+       OR u.last_active_at IS NULL
     ORDER BY r.added_at DESC
   `);
   return rows;

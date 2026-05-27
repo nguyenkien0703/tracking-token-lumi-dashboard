@@ -121,6 +121,35 @@ async function doSync(): Promise<void> {
         last_active_at = GREATEST(users.last_active_at, EXCLUDED.last_active_at)
     `);
 
+    // Sync user profiles (email, name) from admin/users
+    try {
+      const profileRes = await fetch(`${API_BASE_URL}/admin/users?limit=10000`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (profileRes.ok) {
+        const profileJson = await profileRes.json();
+        const profiles: Array<Record<string, unknown>> = profileJson?.data ?? [];
+        for (const p of profiles) {
+          if (!p.id) continue;
+          await pool.query(
+            `INSERT INTO users ("userId", email, "firstName", "lastName", "userName", "avatarUrl")
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT ("userId") DO UPDATE SET
+               email      = COALESCE(EXCLUDED.email, users.email),
+               "firstName"= COALESCE(EXCLUDED."firstName", users."firstName"),
+               "lastName" = COALESCE(EXCLUDED."lastName", users."lastName"),
+               "userName" = COALESCE(EXCLUDED."userName", users."userName"),
+               "avatarUrl"= COALESCE(EXCLUDED."avatarUrl", users."avatarUrl")`,
+            [p.id, p.email ?? null, p.firstName ?? null, p.lastName ?? null, p.userName ?? null, p.avatarUrl ?? null]
+          );
+        }
+        console.log(`[sync] User profiles synced: ${profiles.length}`);
+      }
+    } catch (profileErr) {
+      console.warn("[sync] User profile sync failed (non-fatal):", profileErr);
+    }
+
     await pool.query(
       `UPDATE sync_state SET "lastSyncAt"=$1, "totalRecords"=$2, status='idle' WHERE id=1`,
       [new Date().toISOString(), total]

@@ -230,15 +230,6 @@ export default function EngagementPage() {
         </div>
       </section>
 
-      {/* Quality Metrics — replaced with EmptyState (BA chưa define) */}
-      <section>
-        <h2 className="text-sm font-semibold text-text-primary mb-3">Quality Metrics</h2>
-        <EmptyState
-          icon={<Hourglass className="w-5 h-5" />}
-          title="Quality metrics not yet defined"
-          description="Awaiting BA spec"
-        />
-      </section>
 
       {/* Per-User Engagement */}
       <section className="bg-surface border border-border-default rounded-xl overflow-hidden">
