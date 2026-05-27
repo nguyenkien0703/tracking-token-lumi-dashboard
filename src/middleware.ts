@@ -1,31 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionFromRequest } from "@/lib/session";
 
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+function isAdminZone(pathname: string): boolean {
+  return (
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api/admin")
+  );
 }
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (pathname === "/admin/login") return NextResponse.next();
+  // Public routes
+  if (pathname === "/login" || pathname.startsWith("/login/")) {
+    return NextResponse.next();
+  }
+  if (pathname.startsWith("/api/auth/")) {
+    return NextResponse.next();
+  }
 
-  const sessionCookie = req.cookies.get("admin_session")?.value;
-  const adminPassword = process.env.ADMIN_PANEL_PASSWORD ?? "";
-  const expectedHash = await hashPassword(adminPassword);
+  const session = await getSessionFromRequest(req);
 
-  if (sessionCookie !== expectedHash) {
-    const loginUrl = new URL("/admin/login", req.url);
+  if (!session) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("from", pathname + req.nextUrl.search);
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (isAdminZone(pathname) && !session.isAdmin) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/settings/:path*"],
+  matcher: [
+    /*
+     * Match all routes except:
+     * - _next/static (Next.js static assets)
+     * - _next/image (Next.js image optimization)
+     * - favicon.ico, *.png, *.svg, *.jpg, *.jpeg, *.gif (static files)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|svg|jpg|jpeg|gif)$).*)",
+  ],
 };
