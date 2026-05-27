@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { getSessionCost, getSessionMessages } from "@/lib/api";
 import { UserCostSummary, SessionMessageEntry, SessionMessagesPagination } from "@/types";
 import StatCard from "@/components/StatCard";
+import { usePageSetup } from "@/lib/use-page-setup";
 
 const PAGE_LIMIT = 20;
 const ORDER: "asc" | "desc" = "desc";
@@ -26,8 +26,14 @@ function RoleBadge({ role }: { role: string | null }) {
 }
 
 function MessageEntryCard({ entry, index }: { entry: SessionMessageEntry; index: number }) {
+  const roleCardClass =
+    entry.role === "user"
+      ? "border border-primary/30 bg-primary/5 border-l-[3px] border-l-primary"
+      : entry.role === "assistant"
+      ? "border border-success/20 bg-success/5 border-l-[3px] border-l-success"
+      : "border border-border-default bg-surface/60";
   return (
-    <div className="border border-border-default rounded-xl bg-surface/60 p-4 space-y-3">
+    <div className={`rounded-xl p-4 space-y-3 ${roleCardClass}`}>
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
@@ -77,6 +83,13 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
   const { sessionId } = params;
   const searchParams = useSearchParams();
   const fromUserId = searchParams.get("userId");
+  const shortId = sessionId.length > 20 ? `${sessionId.slice(0, 16)}…` : sessionId;
+
+  usePageSetup([
+    { label: "Overview", href: "/" },
+    ...(fromUserId ? [{ label: `User #${fromUserId}`, href: `/users/${fromUserId}` }] : []),
+    { label: shortId },
+  ]);
 
   const [data, setData] = useState<UserCostSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,41 +137,23 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
   const currentPage = Math.floor(offset / PAGE_LIMIT) + 1;
   const totalPages = pagination ? Math.ceil(pagination.total / PAGE_LIMIT) : 1;
 
-  const shortId = sessionId.length > 20 ? `${sessionId.slice(0, 16)}…` : sessionId;
-
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Breadcrumb + Header */}
+    <div className="max-w-7xl mx-auto space-y-5">
+      {/* Session ID subtitle */}
       <div>
-        <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
-          <Link href="/" className="hover:text-text-primary transition-colors">Overview</Link>
-          {fromUserId && (
-            <>
-              <span>/</span>
-              <Link
-                href={`/users/${fromUserId}`}
-                className="hover:text-text-primary transition-colors"
-              >
-                User #{fromUserId}
-              </Link>
-            </>
-          )}
-          <span>/</span>
-          <span className="text-text-primary font-mono text-xs">{shortId}</span>
-        </div>
-        <h1 className="text-2xl font-bold text-text-primary">Session Detail</h1>
-        <p className="text-text-secondary text-xs mt-1 font-mono break-all">{sessionId}</p>
+        <h1 className="text-lg font-bold text-text-primary">Session Detail</h1>
+        <p className="text-text-muted text-xs mt-0.5 font-mono break-all">{sessionId}</p>
       </div>
 
       {error && (
-        <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm px-4 py-3 rounded-lg">
+        <div className="bg-danger/10 border border-danger/30 text-danger text-sm px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
 
       {loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[1, 2, 3].map((i) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="bg-surface border border-border-default rounded-xl p-5 h-20 animate-pulse" />
           ))}
         </div>
@@ -167,10 +162,20 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
       {data && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <StatCard
               label="Total Tokens"
               value={data.totalTokens.toLocaleString()}
+              loading={loading}
+            />
+            <StatCard
+              label="Input Tokens"
+              value={data.totalPromptTokens.toLocaleString()}
+              loading={loading}
+            />
+            <StatCard
+              label="Output Tokens"
+              value={data.totalCompletionTokens.toLocaleString()}
               loading={loading}
             />
             <StatCard
@@ -208,7 +213,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
         </div>
 
         {msgError && (
-          <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm px-4 py-3 rounded-lg">
+          <div className="bg-danger/10 border border-danger/30 text-danger text-sm px-4 py-3 rounded-lg">
             {msgError}
           </div>
         )}

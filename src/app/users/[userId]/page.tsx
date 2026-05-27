@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import { subDays, format } from "date-fns";
 import {
   getUserCost,
@@ -11,11 +10,12 @@ import {
   computeAlertThreshold,
 } from "@/lib/api";
 import type { CostComparison } from "@/lib/api";
-import { UserCostSummary, UserSessionsData, DateRange, DailyEntry } from "@/types";
+import { UserCostSummary, UserSessionsData, DailyEntry } from "@/types";
 import StatCard from "@/components/StatCard";
-import DateRangePicker from "@/components/DateRangePicker";
 import TokenLineChart from "@/components/TokenLineChart";
 import SessionTable from "@/components/SessionTable";
+import { useTopBar } from "@/lib/topbar-context";
+import { usePageSetup } from "@/lib/use-page-setup";
 
 const LIMIT = 50;
 
@@ -26,11 +26,11 @@ function calcDelta(current: number, previous: number): number {
 
 export default function UserDetailPage({ params }: { params: { userId: string } }) {
   const userId = parseInt(params.userId);
+  const { dateRange, activePeriod, setDateRange } = useTopBar();
 
   const [userInfo, setUserInfo] = useState<{ firstName: string; lastName: string; email: string; avatarUrl: string | null } | null>(null);
   const [summary, setSummary] = useState<UserCostSummary | null>(null);
   const [sessionsData, setSessionsData] = useState<UserSessionsData | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [offset, setOffset] = useState(0);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingSessions, setLoadingSessions] = useState(true);
@@ -39,7 +39,15 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
   const [comparison, setComparison] = useState<CostComparison | null>(null);
   const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
   const [alertThreshold, setAlertThreshold] = useState<number | null>(null);
-  const [activePeriod, setActivePeriod] = useState<string>("7d");
+
+  const userName = userInfo
+    ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || userInfo.email || `User #${userId}`
+    : `User #${userId}`;
+
+  usePageSetup(
+    [{ label: "Overview", href: "/" }, { label: userName }],
+    true
+  );
 
   useEffect(() => {
     fetch(`/api/proxy/user/${userId}`)
@@ -107,43 +115,28 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
   useEffect(() => { fetchDailyAndComparison(); }, [fetchDailyAndComparison]);
   useEffect(() => { fetchAlertThreshold(); }, [fetchAlertThreshold]);
 
-  const handleDateChange = (range: DateRange, period?: string) => {
-    setOffset(0);
-    setDateRange(range);
-    if (period) setActivePeriod(period);
+  const handlePageChange = (newOffset: number) => {
+    setOffset(newOffset);
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Breadcrumb + Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+    <div className="max-w-7xl mx-auto space-y-4">
+      {/* User header */}
+      <div className="flex items-center gap-3 mb-2">
+        {userInfo?.avatarUrl ? (
+          <img src={userInfo.avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
+        ) : (
+          <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-lg text-white"
+            style={{ background: "linear-gradient(135deg, #3B82F6, #6366F1)" }}>
+            {userInfo ? (userInfo.firstName?.[0] ?? userInfo.lastName?.[0] ?? userInfo.email?.[0] ?? "U").toUpperCase() : "U"}
+          </div>
+        )}
         <div>
-          <div className="flex items-center gap-2 text-sm text-text-muted mb-2">
-            <Link href="/" className="hover:text-text-primary transition-colors">Overview</Link>
-            <span>/</span>
-            <span className="text-text-primary">
-              {userInfo ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || userInfo.email || "User Detail" : "User Detail"}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            {userInfo?.avatarUrl ? (
-              <img src={userInfo.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                {userInfo ? (userInfo.firstName?.[0] ?? userInfo.lastName?.[0] ?? userInfo.email?.[0] ?? "U") : "U"}
-              </div>
-            )}
-            <div>
-              <h1 className="text-2xl font-bold text-text-primary">
-                {userInfo ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || userInfo.email || "User Detail" : "User Detail"}
-              </h1>
-              {userInfo?.email && (
-                <p className="text-text-muted text-sm">{userInfo.email}</p>
-              )}
-            </div>
-          </div>
+          <h1 className="text-xl font-bold text-text-primary leading-tight">{userName}</h1>
+          {userInfo?.email && (
+            <p className="text-text-muted text-xs mt-0.5">{userInfo.email}</p>
+          )}
         </div>
-        <DateRangePicker value={dateRange} onChange={handleDateChange} />
       </div>
 
       {error && (
@@ -153,71 +146,91 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
       )}
 
       {/* Row 1: Token metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          label="Total Tokens"
-          value={summary ? summary.totalTokens.toLocaleString() : "—"}
-          loading={loadingSummary}
-          delta={
-            comparison
-              ? { value: calcDelta(comparison.current.totalTokens, comparison.previous.totalTokens), label: "vs prev period", positiveIsGood: false }
-              : undefined
-          }
-        />
-        <StatCard
-          label="Input Tokens"
-          value={summary ? summary.totalPromptTokens.toLocaleString() : "—"}
-          loading={loadingSummary}
-        />
-        <StatCard
-          label="Output Tokens"
-          value={summary ? summary.totalCompletionTokens.toLocaleString() : "—"}
-          loading={loadingSummary}
-        />
-        <StatCard
-          label="Total Cost"
-          value={summary ? `$${summary.totalCostUsd.toFixed(4)}` : "—"}
-          hint="USD"
-          loading={loadingSummary}
-          tone={alertThreshold !== null && summary && summary.totalCostUsd > alertThreshold ? "warning" : "default"}
-          delta={
-            comparison
-              ? { value: calcDelta(comparison.current.totalCostUsd, comparison.previous.totalCostUsd), label: "vs prev period", positiveIsGood: false }
-              : undefined
-          }
-        />
+      <div className="space-y-2">
+        <p className="text-[10px] uppercase tracking-widest font-bold text-primary pl-0.5 flex items-center gap-2">
+          Token Metrics
+          <span className="flex-1 h-px bg-primary/20" />
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard
+            label="Total Tokens"
+            value={summary ? summary.totalTokens.toLocaleString() : "—"}
+            loading={loadingSummary}
+            valueColor="blue"
+            delta={
+              comparison
+                ? { value: calcDelta(comparison.current.totalTokens, comparison.previous.totalTokens), label: "vs prev period", positiveIsGood: false }
+                : undefined
+            }
+          />
+          <StatCard
+            label="Input Tokens"
+            value={summary ? summary.totalPromptTokens.toLocaleString() : "—"}
+            loading={loadingSummary}
+            valueColor="slate"
+          />
+          <StatCard
+            label="Output Tokens"
+            value={summary ? summary.totalCompletionTokens.toLocaleString() : "—"}
+            loading={loadingSummary}
+            valueColor="slate"
+          />
+          <StatCard
+            label="Total Cost"
+            value={summary ? `$${summary.totalCostUsd.toFixed(4)}` : "—"}
+            hint="USD"
+            loading={loadingSummary}
+            tone={alertThreshold !== null && summary && summary.totalCostUsd > alertThreshold ? "warning" : "default"}
+            valueColor="green"
+            delta={
+              comparison
+                ? { value: calcDelta(comparison.current.totalCostUsd, comparison.previous.totalCostUsd), label: "vs prev period", positiveIsGood: false }
+                : undefined
+            }
+          />
+        </div>
       </div>
 
       {/* Row 2: Activity & cache */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          label="Turns"
-          value={summary ? summary.requestCount.toLocaleString() : "—"}
-          loading={loadingSummary}
-        />
-        <StatCard
-          label="Sessions"
-          value={sessionsData ? sessionsData.total.toLocaleString() : "—"}
-          loading={loadingSessions}
-        />
-        <StatCard
-          label="Avg Cost / Turn"
-          value={summary && summary.requestCount > 0 ? `$${(summary.totalCostUsd / summary.requestCount).toFixed(4)}` : "—"}
-          loading={loadingSummary}
-        />
-        <StatCard
-          label="Cache Saving"
-          value={summary?.cacheSavingUsd != null ? `$${summary.cacheSavingUsd.toFixed(4)}` : "$0.0000"}
-          hint="USD — BE pending"
-          loading={loadingSummary}
-        />
+      <div className="space-y-2">
+        <p className="text-[10px] uppercase tracking-widest font-bold text-primary pl-0.5 flex items-center gap-2">
+          Activity &amp; Cache
+          <span className="flex-1 h-px bg-primary/20" />
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard
+            label="Turns"
+            value={summary ? summary.requestCount.toLocaleString() : "—"}
+            loading={loadingSummary}
+            valueColor="amber"
+          />
+          <StatCard
+            label="Sessions"
+            value={sessionsData ? sessionsData.total.toLocaleString() : "—"}
+            loading={loadingSessions}
+            valueColor="purple"
+          />
+          <StatCard
+            label="Avg Cost / Turn"
+            value={summary && summary.requestCount > 0 ? `$${(summary.totalCostUsd / summary.requestCount).toFixed(4)}` : "—"}
+            loading={loadingSummary}
+            valueColor="green"
+          />
+          <StatCard
+            label="Cache Saving"
+            value={summary?.cacheSavingUsd != null ? `$${summary.cacheSavingUsd.toFixed(4)}` : "$0.0000"}
+            hint="USD — BE pending"
+            loading={loadingSummary}
+            valueColor="cyan"
+          />
+        </div>
       </div>
 
       {/* Chart */}
       <div className="bg-surface border border-border-default rounded-xl p-5">
         <h2 className="text-text-primary font-semibold text-sm mb-4">Token Usage Over Time</h2>
         {loadingSessions ? (
-          <div className="h-40 flex items-center justify-center text-text-muted text-sm animate-pulse">
+          <div className="h-56 flex items-center justify-center text-text-muted text-sm animate-pulse">
             Loading chart...
           </div>
         ) : (
@@ -247,7 +260,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
             limit={LIMIT}
             offset={offset}
             userId={userId}
-            onPageChange={setOffset}
+            onPageChange={handlePageChange}
           />
         ) : (
           <div className="bg-surface border border-border-default rounded-xl h-24 flex items-center justify-center text-text-muted text-sm animate-pulse">

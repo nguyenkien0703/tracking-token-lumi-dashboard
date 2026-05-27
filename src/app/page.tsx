@@ -11,6 +11,7 @@ import PeriodChip, { PeriodValue } from "@/components/PeriodChip";
 import ResponsiveTable, { Column } from "@/components/ResponsiveTable";
 import UserSearch from "@/components/UserSearch";
 import { fmtInt, fmtUsd, derivePeriod, periodLabel } from "@/lib/format";
+import { usePageSetup } from "@/lib/use-page-setup";
 
 // Defined inline to avoid importing server-only savameta-queries module
 type AdoptionSummary = {
@@ -143,6 +144,7 @@ const topUserCols: Column<TopUser>[] = [
 ];
 
 export default function OverviewPage() {
+  usePageSetup([{ label: "Overview" }]);
   const [segment, setSegment] = useState<Segment>("all");
   const [period, setPeriod] = useState<PeriodValue>({ period: "7d" });
   const [users, setUsers] = useState<TopUser[]>([]);

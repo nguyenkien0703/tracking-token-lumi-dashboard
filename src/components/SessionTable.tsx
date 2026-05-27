@@ -50,15 +50,15 @@ export default function SessionTable({
             <tr>
               <th className="px-3 py-3 w-10 text-center">#</th>
               <th className="px-3 py-3">Title</th>
-              <th className="px-3 py-3 text-right">Turns</th>
-              <th className="px-3 py-3 text-right">Input Tokens</th>
-              <th className="px-3 py-3 text-right">Output Tokens</th>
-              <th className="px-3 py-3 text-right">Cache Write</th>
-              <th className="px-3 py-3 text-right">Cache Hit</th>
-              <th className="px-3 py-3 text-right">Saving ($)</th>
-              <th className="px-3 py-3 text-right">Burn Rate</th>
-              <th className="px-3 py-3 text-right">Cost</th>
-              <th className="px-3 py-3">Created At</th>
+              <th className="px-3 py-3 text-right whitespace-nowrap">Turns</th>
+              <th className="px-3 py-3 text-right whitespace-nowrap">Input Tokens</th>
+              <th className="px-3 py-3 text-right whitespace-nowrap">Output Tokens</th>
+              <th className="px-3 py-3 text-right whitespace-nowrap">Cache Write</th>
+              <th className="px-3 py-3 text-right whitespace-nowrap">Cache Hit</th>
+              <th className="px-3 py-3 text-right whitespace-nowrap">Saving ($)</th>
+              <th className="px-3 py-3 text-right whitespace-nowrap">Burn Rate</th>
+              <th className="px-3 py-3 text-right whitespace-nowrap">Cost</th>
+              <th className="px-3 py-3 whitespace-nowrap">Created At</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-default/50">
@@ -71,44 +71,45 @@ export default function SessionTable({
             )}
             {entries.map((e, i) => (
               <tr key={e.sessionId} className="hover:bg-surface-2/50 transition-colors">
-                <td className="px-3 py-2.5 text-center text-text-muted text-xs tabular-nums">
+                <td className="px-3 py-2 text-center text-text-muted text-xs tabular-nums">
                   {offset + i + 1}
                 </td>
-                <td className="px-3 py-2.5 max-w-[200px]">
+                <td className="px-3 py-2 max-w-[260px]">
                   <Link
                     href={`/sessions/${e.sessionId}?userId=${userId}`}
-                    className="text-primary hover:underline text-sm font-medium truncate block"
+                    className="hover:underline text-xs font-medium truncate block"
+                    style={{ color: "#818CF8" }}
                     title={e.title ?? e.sessionId}
                   >
                     {e.title || <span className="text-text-muted italic">Untitled</span>}
                   </Link>
-                  <span className="text-text-muted font-mono text-xs">{e.sessionId.slice(0, 12)}…</span>
+                  <span className="font-mono text-[10px]" style={{ color: "#334155" }}>{e.sessionId.slice(0, 12)}…</span>
                 </td>
-                <td className="px-3 py-2.5 text-right text-warning text-xs tabular-nums">
+                <td className="px-3 py-2 text-right text-xs tabular-nums font-semibold" style={{ color: "#FBBF24" }}>
                   {e.requestCount}
                 </td>
-                <td className="px-3 py-2.5 text-right text-text-secondary text-xs tabular-nums">
+                <td className="px-3 py-2 text-right text-xs tabular-nums" style={{ color: "#60A5FA" }}>
                   {e.totalPromptTokens.toLocaleString()}
                 </td>
-                <td className="px-3 py-2.5 text-right text-text-secondary text-xs tabular-nums">
+                <td className="px-3 py-2 text-right text-xs tabular-nums text-text-secondary">
                   {e.totalCompletionTokens.toLocaleString()}
                 </td>
-                <td className="px-3 py-2.5 text-right text-text-muted text-xs tabular-nums">
+                <td className="px-3 py-2 text-right text-xs tabular-nums" style={{ color: "#334155" }}>
                   {(e.cacheWriteTokens ?? 0).toLocaleString()}
                 </td>
-                <td className="px-3 py-2.5 text-right text-text-muted text-xs tabular-nums">
+                <td className="px-3 py-2 text-right text-xs tabular-nums" style={{ color: "#334155" }}>
                   {(e.cacheHitTokens ?? 0).toLocaleString()}
                 </td>
-                <td className="px-3 py-2.5 text-right text-text-muted text-xs tabular-nums">
+                <td className="px-3 py-2 text-right text-xs tabular-nums" style={{ color: "#334155" }}>
                   ${(e.cacheSavingUsd ?? 0).toFixed(4)}
                 </td>
-                <td className="px-3 py-2.5 text-right text-primary/70 text-xs tabular-nums font-mono">
+                <td className="px-3 py-2 text-right text-xs tabular-nums font-mono" style={{ color: "#A78BFA" }}>
                   {calcBurnRate(e.totalTokens, e.firstTrackedAt, e.lastTrackedAt)}
                 </td>
-                <td className="px-3 py-2.5 text-right font-semibold text-success text-xs tabular-nums">
+                <td className="px-3 py-2 text-right text-xs tabular-nums font-semibold" style={{ color: "#34D399" }}>
                   ${e.totalCostUsd.toFixed(4)}
                 </td>
-                <td className="px-3 py-2.5 text-text-muted text-xs whitespace-nowrap">
+                <td className="px-3 py-2 text-xs whitespace-nowrap" style={{ color: "#475569" }}>
                   {e.sessionCreatedAt ? format(parseISO(e.sessionCreatedAt), "MM/dd HH:mm") : "—"}
                 </td>
               </tr>
