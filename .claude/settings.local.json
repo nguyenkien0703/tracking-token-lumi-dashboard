@@ -5,7 +5,18 @@
       "Bash(curl:*)",
       "Bash(make staging:*)",
       "Bash(docker-compose:*)",
-      "Bash(open:*)"
+      "Bash(open:*)",
+      "Read(//Users/macboook/.claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.5.0/**)",
+      "Bash(python3 skills/ui-ux-pro-max/scripts/search.py \"analytics dashboard dark theme data monitoring SaaS\" --design-system -p \"Lumi Token Dashboard\" -f markdown)",
+      "Bash(python3 src/ui-ux-pro-max/scripts/search.py \"analytics dashboard dark theme data monitoring SaaS\" --design-system -p \"Lumi Token Dashboard\" -f markdown)",
+      "Bash(python3 src/ui-ux-pro-max/scripts/search.py \"dropdown menu date picker form input dark\" --domain ux)",
+      "Bash(psql *)",
+      "Bash(docker exec tracking-token-lumi-dashboard-postgres-1 *)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/tmp/users_resp.json'\\)\\); data=d['data']; print\\(type\\(data\\), len\\(data\\) if isinstance\\(data,list\\) else list\\(data.keys\\(\\)\\)\\); print\\(data[0] if isinstance\\(data,list\\) and data else data\\)\")",
+      "Bash(python3 -c \"import sys,json; print\\(json.load\\(sys.stdin\\)\\)\")",
+      "Bash(sqlite3 *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }

@@ -11,7 +11,20 @@ export function getPool(): Pool {
   return _pool;
 }
 
-export async function initSchema(): Promise<void> {
+// Singleton — concurrent first-time callers share one promise so the
+// DDL (ALTER TABLE, CREATE INDEX) doesn't race on AccessExclusiveLock.
+let _initPromise: Promise<void> | null = null;
+
+export function initSchema(): Promise<void> {
+  if (_initPromise) return _initPromise;
+  _initPromise = runMigrations().catch((err) => {
+    _initPromise = null; // allow retry on next call
+    throw err;
+  });
+  return _initPromise;
+}
+
+async function runMigrations(): Promise<void> {
   const pool = getPool();
   await pool.query(`
     CREATE TABLE IF NOT EXISTS history_entries (
@@ -29,6 +42,13 @@ export async function initSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_history_userId ON history_entries("userId");
     CREATE INDEX IF NOT EXISTS idx_history_createdAt ON history_entries("createdAt");
 
+    ALTER TABLE history_entries ADD COLUMN IF NOT EXISTS cache_read_tokens INTEGER DEFAULT 0;
+    CREATE INDEX IF NOT EXISTS idx_history_sessionId ON history_entries("sessionId");
+
+    -- Production has anonymous traffic with userId=null; allow NULL.
+    -- Savameta queries always INNER JOIN users so anonymous rows are filtered out.
+    ALTER TABLE history_entries ALTER COLUMN "userId" DROP NOT NULL;
+
     CREATE TABLE IF NOT EXISTS users (
       "userId" INTEGER PRIMARY KEY,
       "firstName" TEXT,
@@ -38,6 +58,13 @@ export async function initSchema(): Promise<void> {
       "userName" TEXT,
       "updatedAt" TEXT
     );
+
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ;
+
+    CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email));
+    CREATE INDEX IF NOT EXISTS idx_users_first_seen ON users (first_seen_at);
+    CREATE INDEX IF NOT EXISTS idx_users_last_active ON users (last_active_at);
 
     CREATE TABLE IF NOT EXISTS sync_state (
       id INTEGER PRIMARY KEY DEFAULT 1,
@@ -49,5 +76,33 @@ export async function initSchema(): Promise<void> {
     INSERT INTO sync_state (id, status)
     VALUES (1, 'idle')
     ON CONFLICT (id) DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS employee_roster (
+      email TEXT PRIMARY KEY,
+      full_name TEXT,
+      department TEXT,
+      source TEXT,
+      added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      added_by TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_roster_email_lower ON employee_roster (LOWER(email));
+
+    CREATE TABLE IF NOT EXISTS releases (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      start_date DATE NOT NULL,
+      end_date DATE,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_releases_start ON releases (start_date);
+
+    INSERT INTO releases (name, start_date, end_date, notes)
+    VALUES
+      ('Release 1', '2026-03-22', '2026-05-26', 'First rollout to Savameta'),
+      ('Release 2', '2026-05-27', NULL, 'Second rollout — ongoing')
+    ON CONFLICT (name) DO NOTHING;
   `);
 }

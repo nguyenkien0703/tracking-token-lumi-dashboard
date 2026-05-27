@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,8 +15,7 @@ services:
       retries: 10
 
   dashboard:
-    build:
-      context: .
+    image: ${IMAGE:-ghcr.io/nguyenkien0703/tracking-token-lumi-dashboard}:${IMAGE_TAG:-latest}
     ports:
       - "${PORT:-3000}:3000"
     restart: unless-stopped

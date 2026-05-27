@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { getUserCost, getUserSessions } from "@/lib/api";
 import { UserCostSummary, UserSessionsData, DateRange } from "@/types";
-import StatCard from "@/components/StatCard";
+import StatCard from "@/components/StatCardLegacy";
 import DateRangePicker from "@/components/DateRangePicker";
 import TokenLineChart from "@/components/TokenLineChart";
 import SessionTable from "@/components/SessionTable";
