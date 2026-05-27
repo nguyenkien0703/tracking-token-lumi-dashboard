@@ -28,7 +28,12 @@
       "Bash(kill 79410)",
       "Bash(node server.cjs)",
       "Read(//private/tmp/brainstorm/state/**)",
-      "Read(//tmp/brainstorm/state/**)"
+      "Read(//tmp/brainstorm/state/**)",
+      "Bash(npm run *)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(dev-browser screenshot *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(dev-browser --help)"
     ]
   }
 }

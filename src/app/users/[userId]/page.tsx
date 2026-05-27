@@ -146,13 +146,12 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
       )}
 
       {/* Row 1: Token metrics */}
-      <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-widest font-bold text-primary pl-0.5 flex items-center gap-2">
-          Token Metrics
-          <span className="flex-1 h-px bg-primary/20" />
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard
+      <div className="border border-border-default rounded-lg overflow-hidden">
+        <div className="px-3 py-1.5 border-b border-border-default bg-surface-2/60">
+          <p className="text-[9px] uppercase tracking-widest font-bold text-primary">Token Metrics</p>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border-default">
+          <StatCard grouped
             label="Total Tokens"
             value={summary ? summary.totalTokens.toLocaleString() : "—"}
             loading={loadingSummary}
@@ -163,19 +162,19 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
                 : undefined
             }
           />
-          <StatCard
+          <StatCard grouped
             label="Input Tokens"
             value={summary ? summary.totalPromptTokens.toLocaleString() : "—"}
             loading={loadingSummary}
             valueColor="slate"
           />
-          <StatCard
+          <StatCard grouped
             label="Output Tokens"
             value={summary ? summary.totalCompletionTokens.toLocaleString() : "—"}
             loading={loadingSummary}
             valueColor="slate"
           />
-          <StatCard
+          <StatCard grouped
             label="Total Cost"
             value={summary ? `$${summary.totalCostUsd.toFixed(4)}` : "—"}
             hint="USD"
@@ -192,31 +191,30 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
       </div>
 
       {/* Row 2: Activity & cache */}
-      <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-widest font-bold text-primary pl-0.5 flex items-center gap-2">
-          Activity &amp; Cache
-          <span className="flex-1 h-px bg-primary/20" />
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard
+      <div className="border border-border-default rounded-lg overflow-hidden">
+        <div className="px-3 py-1.5 border-b border-border-default bg-surface-2/60">
+          <p className="text-[9px] uppercase tracking-widest font-bold text-primary">Activity &amp; Cache</p>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border-default">
+          <StatCard grouped
             label="Turns"
             value={summary ? summary.requestCount.toLocaleString() : "—"}
             loading={loadingSummary}
             valueColor="amber"
           />
-          <StatCard
+          <StatCard grouped
             label="Sessions"
             value={sessionsData ? sessionsData.total.toLocaleString() : "—"}
             loading={loadingSessions}
             valueColor="purple"
           />
-          <StatCard
+          <StatCard grouped
             label="Avg Cost / Turn"
             value={summary && summary.requestCount > 0 ? `$${(summary.totalCostUsd / summary.requestCount).toFixed(4)}` : "—"}
             loading={loadingSummary}
             valueColor="green"
           />
-          <StatCard
+          <StatCard grouped
             label="Cache Saving"
             value={summary?.cacheSavingUsd != null ? `$${summary.cacheSavingUsd.toFixed(4)}` : "$0.0000"}
             hint="USD — BE pending"
@@ -227,8 +225,8 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
       </div>
 
       {/* Chart */}
-      <div className="bg-surface border border-border-default rounded-xl p-5">
-        <h2 className="text-text-primary font-semibold text-sm mb-4">Token Usage Over Time</h2>
+      <div className="bg-surface border border-border-default rounded-lg p-4">
+        <h2 className="text-text-primary font-medium text-[13px] mb-3">Token Usage Over Time</h2>
         {loadingSessions ? (
           <div className="h-56 flex items-center justify-center text-text-muted text-sm animate-pulse">
             Loading chart...

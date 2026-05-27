@@ -20,6 +20,7 @@ export type StatCardProps = {
   valueColor?: StatCardValueColor;
   icon?: ReactNode;
   loading?: boolean;
+  grouped?: boolean;
 };
 
 const valueColorMap: Record<StatCardValueColor, string> = {
@@ -76,40 +77,46 @@ export default function StatCard({
   valueColor = "default",
   icon,
   loading = false,
+  grouped = false,
 }: StatCardProps) {
   if (loading) {
     return (
-      <div className="bg-surface border border-border-default rounded-xl p-3">
-        <Skeleton width="60%" height={10} />
-        <Skeleton width="50%" height={28} className="mt-3" />
-        <Skeleton width="40%" height={12} className="mt-2" />
+      <div className={`bg-surface p-2.5 ${grouped ? "" : "border border-border-default rounded-lg"}`}>
+        <Skeleton width="60%" height={9} />
+        <Skeleton width="50%" height={22} className="mt-2" />
+        <Skeleton width="40%" height={10} className="mt-1.5" />
       </div>
     );
   }
 
   return (
-    <div className={`bg-surface border rounded-xl p-3 ${
-      tone === "warning" ? "border-warning/40" :
-      tone === "danger"  ? "border-danger/40"  :
-      "border-border-default"
+    <div className={`bg-surface p-2.5 ${
+      grouped ? (
+        tone === "warning" ? "border-l-2 border-warning/60" :
+        tone === "danger"  ? "border-l-2 border-danger/60"  : ""
+      ) : (
+        tone === "warning" ? "border border-warning/40 rounded-lg" :
+        tone === "danger"  ? "border border-danger/40 rounded-lg"  :
+        "border border-border-default rounded-lg"
+      )
     }`}>
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">
+        <p className="text-[9px] uppercase tracking-widest text-text-muted font-semibold leading-none">
           {label}
         </p>
         {icon && (
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${chipBgMap[tone]}`}>
+          <div className={`w-6 h-6 rounded flex items-center justify-center ${chipBgMap[tone]}`}>
             {icon}
           </div>
         )}
       </div>
-      <p className={`mt-1.5 font-mono text-xl md:text-2xl font-bold leading-none ${valueColorMap[valueColor]}`}>
+      <p className={`mt-2 font-mono text-base md:text-lg font-bold leading-none tabular-nums tracking-tight ${valueColorMap[valueColor]}`}>
         {value}
       </p>
       {delta ? (
         <DeltaRow delta={delta} />
       ) : hint ? (
-        <p className="mt-1 text-xs text-text-muted">{hint}</p>
+        <p className="mt-1 text-[10px] text-text-muted">{hint}</p>
       ) : null}
     </div>
   );

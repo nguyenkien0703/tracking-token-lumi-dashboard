@@ -83,7 +83,7 @@ export default function SessionTable({
                   >
                     {e.title || <span className="text-text-muted italic">Untitled</span>}
                   </Link>
-                  <span className="font-mono text-[10px]" style={{ color: "#334155" }}>{e.sessionId.slice(0, 12)}…</span>
+                  <span className="font-mono text-[10px] text-text-muted/40">{e.sessionId.slice(0, 12)}…</span>
                 </td>
                 <td className="px-3 py-2 text-right text-xs tabular-nums font-semibold" style={{ color: "#FBBF24" }}>
                   {e.requestCount}
@@ -94,13 +94,13 @@ export default function SessionTable({
                 <td className="px-3 py-2 text-right text-xs tabular-nums text-text-secondary">
                   {e.totalCompletionTokens.toLocaleString()}
                 </td>
-                <td className="px-3 py-2 text-right text-xs tabular-nums" style={{ color: "#334155" }}>
+                <td className="px-3 py-2 text-right text-xs tabular-nums text-text-muted">
                   {(e.cacheWriteTokens ?? 0).toLocaleString()}
                 </td>
-                <td className="px-3 py-2 text-right text-xs tabular-nums" style={{ color: "#334155" }}>
+                <td className="px-3 py-2 text-right text-xs tabular-nums text-text-muted">
                   {(e.cacheHitTokens ?? 0).toLocaleString()}
                 </td>
-                <td className="px-3 py-2 text-right text-xs tabular-nums" style={{ color: "#334155" }}>
+                <td className="px-3 py-2 text-right text-xs tabular-nums text-text-muted">
                   ${(e.cacheSavingUsd ?? 0).toFixed(4)}
                 </td>
                 <td className="px-3 py-2 text-right text-xs tabular-nums font-mono" style={{ color: "#A78BFA" }}>
@@ -109,7 +109,7 @@ export default function SessionTable({
                 <td className="px-3 py-2 text-right text-xs tabular-nums font-semibold" style={{ color: "#34D399" }}>
                   ${e.totalCostUsd.toFixed(4)}
                 </td>
-                <td className="px-3 py-2 text-xs whitespace-nowrap" style={{ color: "#475569" }}>
+                <td className="px-3 py-2 text-xs whitespace-nowrap text-text-muted">
                   {e.sessionCreatedAt ? format(parseISO(e.sessionCreatedAt), "MM/dd HH:mm") : "—"}
                 </td>
               </tr>

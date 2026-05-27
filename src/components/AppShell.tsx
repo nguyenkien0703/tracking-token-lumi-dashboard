@@ -50,7 +50,7 @@ export default function AppShell({ children, isAdmin }: { children: React.ReactN
       </div>
 
       {/* Main content with TopBar */}
-      <div className="min-h-screen pt-12 md:pt-0 md:ml-14 lg:ml-56 flex flex-col">
+      <div className="min-h-screen pt-12 md:pt-0 md:ml-14 lg:ml-52 flex flex-col">
         {/* Sticky TopBar — desktop/tablet only */}
         <div className="hidden md:block">
           <TopBar />

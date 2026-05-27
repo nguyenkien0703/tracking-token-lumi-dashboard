@@ -71,7 +71,7 @@ export default function Sidebar({ variant, isAdmin, onClose }: Props) {
   return (
     <aside
       className={`h-full bg-surface border-r border-border-default flex flex-col ${
-        isRail ? "w-14" : "w-56"
+        isRail ? "w-14" : "w-52"
       }`}
     >
       <div className={`border-b border-border-default ${isRail ? "py-3 flex justify-center" : "px-4 py-5"}`}>
@@ -109,13 +109,13 @@ export default function Sidebar({ variant, isAdmin, onClose }: Props) {
                       href={item.href}
                       onClick={onClose}
                       aria-label={item.label}
-                      className={`flex items-center justify-center w-10 h-10 mx-auto rounded-lg transition-colors ${
+                      className={`flex items-center justify-center w-9 h-9 mx-auto rounded-lg transition-colors ${
                         active
-                          ? "bg-primary/15 text-primary border-l-2 border-primary"
+                          ? "bg-primary/15 text-primary"
                           : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
                       }`}
                     >
-                      <item.Icon className="w-5 h-5" />
+                      <item.Icon className="w-4 h-4" />
                     </Link>
                     <span
                       role="tooltip"
@@ -131,13 +131,13 @@ export default function Sidebar({ variant, isAdmin, onClose }: Props) {
                   key={item.href}
                   href={item.href}
                   onClick={onClose}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] transition-colors ${
                     active
                       ? "bg-primary/15 text-primary"
                       : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
                   }`}
                 >
-                  <item.Icon className="w-5 h-5" />
+                  <item.Icon className="w-4 h-4 shrink-0" />
                   <span className="truncate">{item.label}</span>
                 </Link>
               );

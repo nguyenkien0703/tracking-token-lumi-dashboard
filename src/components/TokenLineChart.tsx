@@ -47,15 +47,15 @@ export default function TokenLineChart({ entries }: Props) {
 
   if (data.length === 0) {
     return (
-      <div className="h-56 flex items-center justify-center text-text-muted text-sm">
+      <div className="h-64 flex items-center justify-center text-text-muted text-sm">
         No data
       </div>
     );
   }
 
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
+    <ResponsiveContainer width="100%" height={260}>
+      <ComposedChart data={data} margin={{ top: 8, right: 20, left: 0, bottom: 4 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
         <XAxis
           dataKey="label"
