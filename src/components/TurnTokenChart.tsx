@@ -1,11 +1,10 @@
 "use client";
 
-import { DailyEntry } from "@/types";
-import { format, parseISO } from "date-fns";
+import { SessionMessageEntry } from "@/types";
 import { useState } from "react";
 
 interface Props {
-  entries: DailyEntry[];
+  entries: SessionMessageEntry[];
 }
 
 function formatTokens(val: number): string {
@@ -27,7 +26,7 @@ const VB_W = 700;
 const VB_H = 120;
 const BASELINE = 119;
 
-export default function TokenLineChart({ entries }: Props) {
+export default function TurnTokenChart({ entries }: Props) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   if (entries.length === 0) {
@@ -38,16 +37,21 @@ export default function TokenLineChart({ entries }: Props) {
     );
   }
 
-  const maxTokens = niceCeil(Math.max(...entries.map((e) => e.totalTokens), 1));
-  const maxCost = niceCeil(Math.max(...entries.map((e) => e.totalCostUsd), 0.01));
+  // Sort ascending by createdAt so chart reads left→right oldest→newest
+  const sorted = [...entries].sort(
+    (a, b) => new Date(a.messageCreatedAt).getTime() - new Date(b.messageCreatedAt).getTime()
+  );
 
-  const n = entries.length;
+  const maxTokens = niceCeil(Math.max(...sorted.map((e) => e.totalTokens), 1));
+  const maxCost = niceCeil(Math.max(...sorted.map((e) => e.totalCostUsd), 0.001));
+
+  const n = sorted.length;
   const xOf = (i: number) => (n === 1 ? VB_W / 2 : (i / (n - 1)) * VB_W);
   const yTokens = (v: number) => BASELINE - (v / maxTokens) * BASELINE;
   const yCost = (v: number) => BASELINE - (v / maxCost) * BASELINE;
 
-  const tokenPoints = entries.map((e, i) => `${xOf(i).toFixed(1)},${yTokens(e.totalTokens).toFixed(1)}`);
-  const costPoints = entries.map((e, i) => `${xOf(i).toFixed(1)},${yCost(e.totalCostUsd).toFixed(1)}`);
+  const tokenPoints = sorted.map((e, i) => `${xOf(i).toFixed(1)},${yTokens(e.totalTokens).toFixed(1)}`);
+  const costPoints = sorted.map((e, i) => `${xOf(i).toFixed(1)},${yCost(e.totalCostUsd).toFixed(1)}`);
 
   const areaPoints = [
     `0,${BASELINE}`,
@@ -56,12 +60,12 @@ export default function TokenLineChart({ entries }: Props) {
   ].join(" ");
 
   const tokenAxisLabels = [4, 3, 2, 1, 0].map((i) => formatTokens((maxTokens / 4) * i));
-  const costAxisLabels = [4, 3, 2, 1, 0].map((i) => `$${((maxCost / 4) * i).toFixed(2)}`);
+  const costAxisLabels = [4, 3, 2, 1, 0].map((i) => `$${((maxCost / 4) * i).toFixed(3)}`);
 
   const xLabels = (() => {
-    if (n <= 8) return entries.map((e) => format(parseISO(e.date), "MM/dd"));
+    if (n <= 10) return sorted.map((_, i) => `T${i + 1}`);
     const step = Math.ceil(n / 8);
-    return entries.filter((_, i) => i % step === 0 || i === n - 1).map((e) => format(parseISO(e.date), "MM/dd"));
+    return sorted.filter((_, i) => i % step === 0 || i === n - 1).map((_, i) => `T${i * step + 1}`);
   })();
 
   return (
@@ -70,15 +74,14 @@ export default function TokenLineChart({ entries }: Props) {
       <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#64748B" }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#3B82F6" }} />
-          Total Tokens (left axis)
+          Tokens / Turn (left axis)
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#64748B" }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10B981" }} />
-          Cost USD (right axis)
+          Cost USD / Turn (right axis)
         </div>
       </div>
 
-      {/* Chart with dual Y-axis */}
       <div style={{ display: "flex", gap: 0, alignItems: "stretch" }}>
         {/* Left Y-axis: Tokens */}
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "4px 8px 20px 0", textAlign: "right", flexShrink: 0, width: 54 }}>
@@ -90,25 +93,22 @@ export default function TokenLineChart({ entries }: Props) {
         {/* Chart area */}
         <div style={{ flex: 1, position: "relative", height: 140 }}>
           <svg width="100%" height="120" style={{ position: "absolute", top: 0, left: 0, overflow: "visible" }} viewBox={`0 0 ${VB_W} ${VB_H}`} preserveAspectRatio="none">
-            {/* horizontal grid */}
             {[0, 30, 60, 90].map((y) => (
               <line key={y} x1="0" y1={y} x2={VB_W} y2={y} stroke="#1E293B" strokeWidth="1" vectorEffect="non-scaling-stroke" />
             ))}
             <line x1="0" y1={BASELINE} x2={VB_W} y2={BASELINE} stroke="#252D4A" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-            {/* vertical grid */}
             {[100, 200, 300, 400, 500, 600].map((x) => (
               <line key={x} x1={x} y1="0" x2={x} y2={BASELINE} stroke="#1E293B" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
             ))}
 
             <defs>
-              <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id="turnBlueGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.15" />
                 <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
               </linearGradient>
             </defs>
 
-            {/* Token area + line */}
-            <polygon points={areaPoints} fill="url(#blueGrad)" />
+            <polygon points={areaPoints} fill="url(#turnBlueGrad)" />
             <polyline
               points={tokenPoints.join(" ")}
               fill="none"
@@ -117,11 +117,10 @@ export default function TokenLineChart({ entries }: Props) {
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
             />
-            {entries.map((e, i) => (
+            {sorted.map((e, i) => (
               <circle key={`t-${i}`} cx={xOf(i)} cy={yTokens(e.totalTokens)} r="3" fill="#3B82F6" />
             ))}
 
-            {/* Cost line (dashed green) */}
             <polyline
               points={costPoints.join(" ")}
               fill="none"
@@ -132,7 +131,7 @@ export default function TokenLineChart({ entries }: Props) {
               opacity="0.85"
               vectorEffect="non-scaling-stroke"
             />
-            {entries.map((e, i) => (
+            {sorted.map((e, i) => (
               <circle key={`c-${i}`} cx={xOf(i)} cy={yCost(e.totalCostUsd)} r="2.5" fill="#10B981" opacity="0.85" />
             ))}
 
@@ -152,7 +151,7 @@ export default function TokenLineChart({ entries }: Props) {
             )}
 
             {/* Invisible hit-area circles for hover */}
-            {entries.map((e, i) => (
+            {sorted.map((e, i) => (
               <circle
                 key={`hit-${i}`}
                 cx={xOf(i)}
@@ -168,7 +167,7 @@ export default function TokenLineChart({ entries }: Props) {
 
           {/* Tooltip */}
           {hoveredIndex !== null && (() => {
-            const e = entries[hoveredIndex];
+            const e = sorted[hoveredIndex];
             const leftPct = n === 1 ? 50 : (hoveredIndex / (n - 1)) * 100;
             const isRightHalf = leftPct > 60;
             return (
@@ -191,7 +190,7 @@ export default function TokenLineChart({ entries }: Props) {
                 }}
               >
                 <div style={{ fontWeight: 600, marginBottom: 4, color: "#F1F5F9" }}>
-                  {format(parseISO(e.date), "MM/dd")}
+                  Turn {hoveredIndex + 1}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#3B82F6" }} />
@@ -207,7 +206,6 @@ export default function TokenLineChart({ entries }: Props) {
             );
           })()}
 
-          {/* X-axis labels */}
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "space-between", fontSize: 10, color: "#475569" }}>
             {xLabels.map((label, i) => (
               <span key={i}>{label}</span>
@@ -215,8 +213,8 @@ export default function TokenLineChart({ entries }: Props) {
           </div>
         </div>
 
-        {/* Right Y-axis: Cost USD */}
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "4px 0 20px 8px", textAlign: "left", flexShrink: 0, width: 52 }}>
+        {/* Right Y-axis: Cost */}
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "4px 0 20px 8px", textAlign: "left", flexShrink: 0, width: 60 }}>
           {costAxisLabels.map((label, i) => (
             <span key={i} style={{ fontSize: 10, color: "#10B981", fontFamily: "ui-monospace, monospace", opacity: 0.7 }}>{label}</span>
           ))}

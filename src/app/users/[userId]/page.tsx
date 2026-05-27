@@ -166,7 +166,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
           value={summary ? summary.totalTokens.toLocaleString() : "—"}
           loading={loadingSummary}
           valueColor="blue"
-          delta={comparison ? { value: calcDelta(comparison.current.totalTokens, comparison.previous.totalTokens), label: "vs prev period", positiveIsGood: false } : undefined}
+          delta={comparison ? { value: calcDelta(comparison.current.totalTokens, comparison.previous.totalTokens), label: "vs prev period", positiveIsGood: true } : undefined}
         />
         <StatCard
           label="Input Tokens"

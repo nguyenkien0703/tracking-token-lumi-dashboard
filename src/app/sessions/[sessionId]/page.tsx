@@ -1,82 +1,30 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { getSessionCost, getSessionMessages } from "@/lib/api";
+import { getSessionCost, getSessionMessages, getUserSessions } from "@/lib/api";
 import { UserCostSummary, SessionMessageEntry, SessionMessagesPagination } from "@/types";
 import StatCard from "@/components/StatCard";
+import TurnTokenChart from "@/components/TurnTokenChart";
+import TurnTable from "@/components/TurnTable";
 import { usePageSetup } from "@/lib/use-page-setup";
 
 const PAGE_LIMIT = 20;
 const ORDER: "asc" | "desc" = "desc";
 
-function RoleBadge({ role }: { role: string | null }) {
-  if (!role) return null;
-  const map: Record<string, string> = {
-    user: "bg-primary/10 text-primary border-primary/30",
-    assistant: "bg-success/10 text-success border-success/30",
-    system: "bg-surface-2/60 text-text-muted border-border-default",
-  };
-  const cls = map[role] ?? "bg-surface-2/60 text-text-muted border-border-default";
-  return (
-    <span className={`inline-block border text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${cls}`}>
-      {role}
-    </span>
-  );
+function shortModelName(model: string): string {
+  const slash = model.lastIndexOf("/");
+  return slash >= 0 ? model.slice(slash + 1) : model;
 }
 
-function MessageEntryCard({ entry, index }: { entry: SessionMessageEntry; index: number }) {
-  const roleCardClass =
-    entry.role === "user"
-      ? "border border-primary/30 bg-primary/5 border-l-[3px] border-l-primary"
-      : entry.role === "assistant"
-      ? "border border-success/20 bg-success/5 border-l-[3px] border-l-success"
-      : "border border-border-default bg-surface/60";
-  return (
-    <div className={`rounded-xl p-4 space-y-3 ${roleCardClass}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-text-primary w-6 text-right">{index}.</span>
-          <RoleBadge role={entry.role} />
-        </div>
-        <span className="text-sm font-medium text-text-primary shrink-0">
-          {new Date(entry.messageCreatedAt).toLocaleString()}
-        </span>
-      </div>
-
-      {/* Token + Cost row */}
-      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-y-1 sm:gap-x-5 text-xs">
-        <span className="text-text-muted">
-          Input: <span className="text-primary font-semibold">{entry.totalPromptTokens.toLocaleString()}</span>
-        </span>
-        <span className="text-text-muted">
-          Output: <span className="text-text-secondary font-semibold">{entry.totalCompletionTokens.toLocaleString()}</span>
-        </span>
-        <span className="text-text-muted">
-          Cache Hit: <span className="text-text-secondary font-semibold">0</span>
-        </span>
-        <span className="text-text-muted">
-          Cost: <span className="text-success font-semibold">${entry.totalCostUsd.toFixed(6)}</span>
-          <span className="text-text-muted"> (in ${entry.inputCostUsd.toFixed(6)} / out ${entry.outputCostUsd.toFixed(6)})</span>
-        </span>
-        {entry.requestCount > 1 && (
-          <span className="text-text-muted">
-            Turns: <span className="text-warning font-semibold">{entry.requestCount}</span>
-          </span>
-        )}
-      </div>
-
-      {/* Time range (if differs) */}
-      {entry.firstTrackedAt !== entry.lastTrackedAt && (
-        <div className="text-xs text-text-muted border-t border-border-default pt-2">
-          Tracked:{" "}
-          {new Date(entry.firstTrackedAt).toLocaleTimeString()} →{" "}
-          {new Date(entry.lastTrackedAt).toLocaleTimeString()}
-        </div>
-      )}
-    </div>
-  );
+function calcBurnRate(totalTokens: number, first: string, last: string): string {
+  if (!first || !last || first === last) return "—";
+  const hours = (new Date(last).getTime() - new Date(first).getTime()) / 3_600_000;
+  if (hours < 0.01) return "—";
+  const rate = totalTokens / hours;
+  if (rate >= 1_000_000) return `${(rate / 1_000_000).toFixed(1)}M/hr`;
+  if (rate >= 1_000) return `${(rate / 1_000).toFixed(1)}k/hr`;
+  return `${Math.round(rate)}/hr`;
 }
 
 export default function SessionDetailPage({ params }: { params: { sessionId: string } }) {
@@ -95,11 +43,13 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [messages, setMessages] = useState<SessionMessageEntry[]>([]);
+  const [allEntries, setAllEntries] = useState<SessionMessageEntry[]>([]);
+  const [entries, setEntries] = useState<SessionMessageEntry[]>([]);
   const [pagination, setPagination] = useState<SessionMessagesPagination | null>(null);
   const [offset, setOffset] = useState(0);
-  const [msgLoading, setMsgLoading] = useState(false);
+  const [msgLoading, setMsgLoading] = useState(true);
   const [msgError, setMsgError] = useState<string | null>(null);
+  const [sessionModels, setSessionModels] = useState<string[]>([]);
 
   useEffect(() => {
     getSessionCost(sessionId)
@@ -114,7 +64,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
       setMsgError(null);
       getSessionMessages(sessionId, off, PAGE_LIMIT, ORDER)
         .then(({ data, pagination }) => {
-          setMessages(data);
+          setEntries(data);
           setPagination(pagination);
         })
         .catch((err) =>
@@ -125,6 +75,27 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
     [sessionId]
   );
 
+  // Load full chart-friendly dataset (sorted asc) — independent of paginated turn table
+  useEffect(() => {
+    getSessionMessages(sessionId, 0, 500, "asc")
+      .then(({ data }) => setAllEntries(data))
+      .catch(() => null);
+  }, [sessionId]);
+
+  // Pull session-level models from /sessions endpoint (BE per-turn `models` is still empty).
+  // Falls back gracefully when userId is missing (e.g. user lands on session URL directly).
+  useEffect(() => {
+    if (!fromUserId) return;
+    const uid = parseInt(fromUserId);
+    if (Number.isNaN(uid)) return;
+    getUserSessions(uid, 0, 200)
+      .then((d) => {
+        const match = d.entries.find((s) => s.sessionId === sessionId);
+        if (match?.models?.length) setSessionModels(match.models);
+      })
+      .catch(() => null);
+  }, [sessionId, fromUserId]);
+
   useEffect(() => {
     loadMessages(0);
   }, [loadMessages]);
@@ -134,163 +105,211 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
     loadMessages(off);
   };
 
-  const currentPage = Math.floor(offset / PAGE_LIMIT) + 1;
-  const totalPages = pagination ? Math.ceil(pagination.total / PAGE_LIMIT) : 1;
+  // Aggregate models + tokens + cost across all turns for breakdown card.
+  // Per-turn `models` is the source of truth; if BE hasn't populated it yet,
+  // fall back to session-level models (from /sessions list). Last resort: "unknown".
+  const modelBreakdown = useMemo(() => {
+    const fallback = sessionModels.length ? sessionModels : ["unknown"];
+    const map = new Map<string, { tokens: number; cost: number; turns: number }>();
+    for (const e of allEntries) {
+      const models = e.models?.length ? e.models : fallback;
+      for (const m of models) {
+        const cur = map.get(m) ?? { tokens: 0, cost: 0, turns: 0 };
+        cur.tokens += Math.round(e.totalTokens / models.length);
+        cur.cost += e.totalCostUsd / models.length;
+        cur.turns += 1;
+        map.set(m, cur);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([model, v]) => ({ model, ...v }))
+      .sort((a, b) => b.cost - a.cost);
+  }, [allEntries, sessionModels]);
+
+  const burnRate = useMemo(() => {
+    if (allEntries.length < 2) return "—";
+    const sorted = [...allEntries].sort(
+      (a, b) => new Date(a.messageCreatedAt).getTime() - new Date(b.messageCreatedAt).getTime()
+    );
+    const first = sorted[0].messageCreatedAt;
+    const last = sorted[sorted.length - 1].messageCreatedAt;
+    const totalTokens = sorted.reduce((acc, e) => acc + e.totalTokens, 0);
+    return calcBurnRate(totalTokens, first, last);
+  }, [allEntries]);
+
+  const totalModelCost = modelBreakdown.reduce((acc, m) => acc + m.cost, 0);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-5">
-      {/* Session ID subtitle */}
-      <div>
-        <h1 className="text-lg font-bold text-text-primary">Session Detail</h1>
-        <p className="text-text-muted text-xs mt-0.5 font-mono break-all">{sessionId}</p>
+    <div>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, #6366F1, #A78BFA)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 18, color: "white" }}>
+            S
+          </div>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#F1F5F9" }}>Session Detail</div>
+            <div style={{ fontSize: 11, color: "#64748B", marginTop: 2, fontFamily: "'SF Mono', ui-monospace, monospace" }}>{sessionId}</div>
+          </div>
+        </div>
       </div>
 
       {error && (
-        <div className="bg-danger/10 border border-danger/30 text-danger text-sm px-4 py-3 rounded-lg">
+        <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#EF4444", fontSize: 13, padding: "10px 16px", borderRadius: 8, marginBottom: 16 }}>
           {error}
         </div>
       )}
 
-      {loading && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="bg-surface border border-border-default rounded-xl p-5 h-20 animate-pulse" />
-          ))}
-        </div>
-      )}
+      {/* Token Metrics */}
+      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3B82F6", fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        Token Metrics
+        <span style={{ flex: 1, height: 1, background: "rgba(59,130,246,0.2)" }} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+        <StatCard label="Total Tokens" value={data ? data.totalTokens.toLocaleString() : "—"} loading={loading} valueColor="blue" />
+        <StatCard label="Input Tokens" value={data ? data.totalPromptTokens.toLocaleString() : "—"} loading={loading} valueColor="slate" />
+        <StatCard label="Output Tokens" value={data ? data.totalCompletionTokens.toLocaleString() : "—"} loading={loading} valueColor="slate" />
+        <StatCard label="Total Cost" value={data ? `$${data.totalCostUsd.toFixed(4)}` : "—"} hint="USD" loading={loading} valueColor="green" />
+      </div>
 
-      {data && (
-        <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <StatCard
-              label="Total Tokens"
-              value={data.totalTokens.toLocaleString()}
-              loading={loading}
-            />
-            <StatCard
-              label="Input Tokens"
-              value={data.totalPromptTokens.toLocaleString()}
-              loading={loading}
-            />
-            <StatCard
-              label="Output Tokens"
-              value={data.totalCompletionTokens.toLocaleString()}
-              loading={loading}
-            />
-            <StatCard
-              label="Total Cost"
-              value={`$${data.totalCostUsd.toFixed(4)}`}
-              hint="USD"
-              tone="success"
-              loading={loading}
-            />
-            <StatCard
-              label="Turns"
-              value={data.requestCount.toLocaleString()}
-              loading={loading}
-            />
+      {/* Activity */}
+      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3B82F6", fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        Activity &amp; Cache
+        <span style={{ flex: 1, height: 1, background: "rgba(59,130,246,0.2)" }} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        <StatCard
+          label="Turns"
+          value={data ? data.requestCount.toLocaleString() : "—"}
+          loading={loading}
+          valueColor="amber"
+        />
+        <StatCard
+          label="Avg Cost / Turn"
+          value={data && data.requestCount > 0 ? `$${(data.totalCostUsd / data.requestCount).toFixed(4)}` : "—"}
+          loading={loading}
+          valueColor="green"
+          hint={data && data.requestCount > 0 ? `= $${data.totalCostUsd.toFixed(4)} / ${data.requestCount} turns` : undefined}
+        />
+        <StatCard
+          label="Burn Rate"
+          value={burnRate}
+          loading={msgLoading && allEntries.length === 0}
+          valueColor="purple"
+          badge={{ text: "new", variant: "new" }}
+        />
+        <StatCard
+          label="Cache Saving"
+          value="$0.00"
+          loading={loading}
+          valueColor="cyan"
+          badge={{ text: "BE pending", variant: "pending" }}
+          hint="Waiting for BE data"
+        />
+      </div>
+
+      {/* Chart */}
+      <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, padding: "16px 20px", marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0", marginBottom: 12 }}>
+          Token Usage Over Turn
+        </div>
+        {allEntries.length === 0 ? (
+          <div style={{ height: 140, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }} className="animate-pulse">
+            Loading chart...
           </div>
-        </>
-      )}
+        ) : (
+          <TurnTokenChart entries={allEntries} />
+        )}
+      </div>
+
+      {/* Models Breakdown */}
+      <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, padding: "16px 20px", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0" }}>Models Used</span>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: "rgba(100,116,139,0.15)", color: "#475569", border: "1px solid #252D4A", letterSpacing: "0.04em" }}>BE PENDING</span>
+          <span style={{ fontSize: 11, color: "#64748B", marginLeft: 4 }}>
+            ({modelBreakdown.length} {modelBreakdown.length === 1 ? "model" : "models"})
+          </span>
+        </div>
+        {modelBreakdown.length === 0 ? (
+          <div style={{ fontSize: 12, color: "#475569" }}>—</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {modelBreakdown.map((m) => {
+              const pct = totalModelCost > 0 ? (m.cost / totalModelCost) * 100 : 0;
+              return (
+                <div key={m.model}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span
+                      title={m.model}
+                      style={{
+                        fontSize: 11,
+                        fontFamily: "'SF Mono', ui-monospace, monospace",
+                        color: "#94A3B8",
+                        background: "rgba(148,163,184,0.08)",
+                        border: "1px solid rgba(148,163,184,0.15)",
+                        padding: "2px 8px",
+                        borderRadius: 4,
+                      }}
+                    >
+                      {shortModelName(m.model)}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 11, fontFamily: "'SF Mono', ui-monospace, monospace" }}>
+                      <span style={{ color: "#64748B" }}>
+                        {m.turns} {m.turns === 1 ? "turn" : "turns"}
+                      </span>
+                      <span style={{ color: "#60A5FA" }}>
+                        {m.tokens.toLocaleString()} tokens
+                      </span>
+                      <span style={{ color: "#34D399", fontWeight: 600 }}>
+                        ${m.cost.toFixed(4)}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ width: "100%", height: 4, background: "rgba(148,163,184,0.08)", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg, #3B82F6, #6366F1)", borderRadius: 2 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Turn Messages */}
-      <div className="bg-surface border border-border-default rounded-xl p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-text-primary font-semibold text-sm">
-            Turn Messages
-            {pagination && (
-              <span className="ml-2 text-text-muted font-normal text-xs">
-                ({pagination.total} total)
-              </span>
-            )}
-          </h2>
-          {pagination && totalPages > 1 && (
-            <span className="text-xs text-text-muted">
-              Page {currentPage} / {totalPages}
+      <div>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "#E2E8F0" }}>Turn Messages</span>
+          {pagination && (
+            <span style={{ fontSize: 12, color: "#64748B", fontWeight: 400, marginLeft: 6 }}>
+              ({pagination.total} total)
             </span>
+          )}
+          {msgLoading && (
+            <span style={{ fontSize: 11, color: "#475569", marginLeft: "auto" }} className="animate-pulse">Loading...</span>
           )}
         </div>
 
         {msgError && (
-          <div className="bg-danger/10 border border-danger/30 text-danger text-sm px-4 py-3 rounded-lg">
+          <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#EF4444", fontSize: 13, padding: "10px 16px", borderRadius: 8, marginBottom: 12 }}>
             {msgError}
           </div>
         )}
 
-        {msgLoading && (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="border border-border-default rounded-xl h-20 animate-pulse bg-surface/60" />
-            ))}
-          </div>
-        )}
-
-        {!msgLoading && messages.length === 0 && !msgError && (
-          <p className="text-text-muted text-sm text-center py-6">No messages found.</p>
-        )}
-
-        {!msgLoading && messages.length > 0 && (
-          <div className="space-y-3">
-            {messages.map((entry, idx) => (
-              <MessageEntryCard key={entry.messageId ?? idx} entry={entry} index={offset + idx + 1} />
-            ))}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {pagination && totalPages > 1 && (
-          <div className="flex items-center justify-between pt-2">
-            <button
-              onClick={() => goToOffset(offset - PAGE_LIMIT)}
-              disabled={!pagination.hasPrev || msgLoading}
-              className="px-3 py-1.5 text-xs rounded-lg border border-border-default text-text-primary disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-2 transition-colors"
-            >
-              ← Prev
-            </button>
-
-            <div className="flex items-center gap-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(
-                  (p) =>
-                    p === 1 ||
-                    p === totalPages ||
-                    Math.abs(p - currentPage) <= 1
-                )
-                .reduce<(number | "…")[]>((acc, p, idx, arr) => {
-                  if (idx > 0 && typeof arr[idx - 1] === "number" && (arr[idx - 1] as number) < p - 1) {
-                    acc.push("…");
-                  }
-                  acc.push(p);
-                  return acc;
-                }, [])
-                .map((item, idx) =>
-                  item === "…" ? (
-                    <span key={`ellipsis-${idx}`} className="px-1 text-text-muted text-xs">…</span>
-                  ) : (
-                    <button
-                      key={item}
-                      onClick={() => goToOffset(((item as number) - 1) * PAGE_LIMIT)}
-                      disabled={msgLoading}
-                      className={`w-7 h-7 text-xs rounded-lg border transition-colors ${
-                        item === currentPage
-                          ? "bg-primary border-primary text-white"
-                          : "border-border-default text-text-secondary hover:bg-surface-2"
-                      } disabled:opacity-40`}
-                    >
-                      {item}
-                    </button>
-                  )
-                )}
-            </div>
-
-            <button
-              onClick={() => goToOffset(offset + PAGE_LIMIT)}
-              disabled={!pagination.hasNext || msgLoading}
-              className="px-3 py-1.5 text-xs rounded-lg border border-border-default text-text-primary disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-2 transition-colors"
-            >
-              Next →
-            </button>
+        {pagination ? (
+          <TurnTable
+            entries={entries.map((e) => ({
+              ...e,
+              models: e.models?.length ? e.models : sessionModels,
+            }))}
+            total={pagination.total}
+            limit={PAGE_LIMIT}
+            offset={offset}
+            onPageChange={goToOffset}
+          />
+        ) : (
+          <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, height: 96, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }} className="animate-pulse">
+            Loading...
           </div>
         )}
       </div>

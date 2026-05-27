@@ -112,6 +112,7 @@ export interface SessionMessageEntry {
   requestCount: number;
   firstTrackedAt: string;
   lastTrackedAt: string;
+  models?: string[];
 }
 
 export interface SessionMessagesPagination {

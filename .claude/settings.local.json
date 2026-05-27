@@ -37,7 +37,9 @@
       "Read(//private/tmp/brainstorm/content/**)",
       "mcp__plugin_context7_context7__resolve-library-id",
       "Bash(python3 -m json.tool)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \"import sys, json; d=json.load\\(sys.stdin\\)['data']; sess=[s for s in d['entries'] if s['sessionId']=='6e8048d4-6f54-435f-84f0-39b73b4d2450']; print\\(json.dumps\\(sess, indent=2\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\)['data']['entries']; [print\\(f\\\\\"role={e['role']}, isUnmapped={e['isUnmapped']}, publicId={e['messagePublicId']}\\\\\"\\) for e in d]\")"
     ]
   }
 }
