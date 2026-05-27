@@ -74,7 +74,11 @@ export default function StatCard({
   }
 
   return (
-    <div className="bg-surface border border-border-default rounded-xl p-4">
+    <div className={`bg-surface border rounded-xl p-4 ${
+      tone === "warning" ? "border-warning/40" :
+      tone === "danger"  ? "border-danger/40"  :
+      "border-border-default"
+    }`}>
       <div className="flex items-start justify-between gap-2">
         <p className="text-[11px] uppercase tracking-wider text-text-secondary font-medium">
           {label}
