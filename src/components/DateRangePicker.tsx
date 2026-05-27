@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DateRange } from "@/types";
 import { format, subDays, startOfMonth } from "date-fns";
 
@@ -32,6 +32,10 @@ interface Props {
 
 export default function DateRangePicker({ value, onChange }: Props) {
   const [activePeriod, setActivePeriod] = useState<Period>("7d");
+
+  useEffect(() => {
+    onChange(periodToRange("7d"), "7d");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePill = (period: Period) => {
     setActivePeriod(period);
