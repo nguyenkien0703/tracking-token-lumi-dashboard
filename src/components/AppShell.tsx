@@ -44,7 +44,7 @@ export default function AppShell({ children, isAdmin }: { children: React.ReactN
         >
           <Menu className="w-5 h-5" />
         </button>
-        <span className="ml-2 text-text-primary text-sm font-semibold">Lumi Token</span>
+        <span className="ml-2 text-text-primary text-sm font-semibold">LumiPulse</span>
       </div>
 
       {/* Main content */}

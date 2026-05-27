@@ -85,8 +85,8 @@ export default function Sidebar({ variant, isAdmin, onClose }: Props) {
               <BarChart3 className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-text-primary text-sm font-semibold leading-tight">Lumi Token</p>
-              <p className="text-text-secondary text-xs">Dashboard</p>
+              <p className="text-text-primary text-sm font-semibold leading-tight">LumiPulse</p>
+              <p className="text-text-secondary text-xs">Token Analytics</p>
             </div>
           </div>
         )}
