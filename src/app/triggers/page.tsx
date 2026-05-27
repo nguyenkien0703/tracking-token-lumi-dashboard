@@ -7,6 +7,7 @@ import SegmentTabs from "@/components/SegmentTabs";
 import StatCard from "@/components/StatCard";
 import ResponsiveTable, { type Column } from "@/components/ResponsiveTable";
 import EmptyState from "@/components/EmptyState";
+import UserCell from "@/components/UserCell";
 import { downloadCsv } from "@/lib/csv";
 
 type Tab = "returning" | "first-value";
@@ -15,6 +16,7 @@ type ReturningUser = {
   email: string;
   full_name: string | null;
   display_name: string | null;
+  user_id: number | null;
   returned_at: string;
   previous_active_at: string;
   idle_days: number;
@@ -24,6 +26,7 @@ type FirstValueUser = {
   email: string;
   full_name: string | null;
   display_name: string | null;
+  user_id: number | null;
   first_value_at: string;
   session_id: string;
   turns_at_value: number;
@@ -48,12 +51,11 @@ const returningCols: Column<ReturningUser>[] = [
     header: "User",
     primary: true,
     render: (u) => (
-      <div className="min-w-0">
-        <p className="text-text-primary text-sm font-medium truncate">
-          {u.display_name ?? u.full_name ?? u.email}
-        </p>
-        <p className="text-text-secondary text-xs truncate">{u.email}</p>
-      </div>
+      <UserCell
+        userId={u.user_id}
+        displayName={u.display_name ?? u.full_name}
+        email={u.email}
+      />
     ),
   },
   {
@@ -87,12 +89,11 @@ const firstValueCols: Column<FirstValueUser>[] = [
     header: "User",
     primary: true,
     render: (u) => (
-      <div className="min-w-0">
-        <p className="text-text-primary text-sm font-medium truncate">
-          {u.display_name ?? u.full_name ?? u.email}
-        </p>
-        <p className="text-text-secondary text-xs truncate">{u.email}</p>
-      </div>
+      <UserCell
+        userId={u.user_id}
+        displayName={u.display_name ?? u.full_name}
+        email={u.email}
+      />
     ),
   },
   {

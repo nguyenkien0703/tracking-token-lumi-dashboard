@@ -6,6 +6,7 @@ import SegmentTabs from "@/components/SegmentTabs";
 import StatCard from "@/components/StatCard";
 import EmptyState from "@/components/EmptyState";
 import ResponsiveTable, { type Column } from "@/components/ResponsiveTable";
+import UserCell from "@/components/UserCell";
 import { fmtInt } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
 
@@ -27,6 +28,7 @@ type UserRow = {
   email: string;
   full_name: string | null;
   display_name: string | null;
+  user_id: number | null;
   conversations: number;
   turns: number;
   total_tokens: number;
@@ -48,12 +50,11 @@ const userCols: Column<UserRow>[] = [
     header: "User",
     primary: true,
     render: (u) => (
-      <div className="min-w-0">
-        <p className="text-text-primary text-sm font-medium truncate">
-          {u.display_name ?? u.full_name ?? u.email}
-        </p>
-        <p className="text-text-secondary text-xs truncate">{u.email}</p>
-      </div>
+      <UserCell
+        userId={u.user_id}
+        displayName={u.display_name ?? u.full_name}
+        email={u.email}
+      />
     ),
   },
   {

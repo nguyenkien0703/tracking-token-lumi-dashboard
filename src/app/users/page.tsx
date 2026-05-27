@@ -6,6 +6,7 @@ import SegmentTabs from "@/components/SegmentTabs";
 import PeriodChip, { type PeriodValue } from "@/components/PeriodChip";
 import ResponsiveTable, { type Column } from "@/components/ResponsiveTable";
 import UserSearch from "@/components/UserSearch";
+import UserCell from "@/components/UserCell";
 import { fmtInt, fmtUsd, derivePeriod } from "@/lib/format";
 
 type SubTab = "top" | "joined" | "never";
@@ -121,10 +122,11 @@ const joinedCols: Column<JoinedUser>[] = [
     header: "User",
     primary: true,
     render: (u: JoinedUser) => (
-      <div className="min-w-0">
-        <p className="text-text-primary text-sm font-medium truncate">{u.display_name || u.full_name || u.email}</p>
-        <p className="text-text-secondary text-xs truncate">{u.email}</p>
-      </div>
+      <UserCell
+        userId={u.user_id}
+        displayName={u.display_name ?? u.full_name}
+        email={u.email}
+      />
     ),
   },
   {
