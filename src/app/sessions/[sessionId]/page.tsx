@@ -48,7 +48,7 @@ function MessageEntryCard({ entry, index }: { entry: SessionMessageEntry; index:
           Output: <span className="text-text-secondary font-semibold">{entry.totalCompletionTokens.toLocaleString()}</span>
         </span>
         <span className="text-text-muted">
-          Cache Hit: <span className="text-cyan-400 font-semibold">0</span>
+          Cache Hit: <span className="text-text-secondary font-semibold">0</span>
         </span>
         <span className="text-text-muted">
           Cost: <span className="text-success font-semibold">${entry.totalCostUsd.toFixed(6)}</span>
