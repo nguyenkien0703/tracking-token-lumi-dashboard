@@ -1,12 +1,14 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import Link from "next/link";
+import { Users as UsersIcon } from "lucide-react";
 import { Segment, SEGMENT_LABELS } from "@/lib/segment";
 import SegmentTabs from "@/components/SegmentTabs";
 import PeriodChip, { type PeriodValue } from "@/components/PeriodChip";
 import ResponsiveTable, { type Column } from "@/components/ResponsiveTable";
 import UserSearch from "@/components/UserSearch";
 import UserCell from "@/components/UserCell";
+import PageHeader from "@/components/ui/PageHeader";
 import { fmtInt, fmtUsd, derivePeriod } from "@/lib/format";
 
 type SubTab = "top" | "joined" | "never";
@@ -262,16 +264,12 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Users</h1>
-          <p className="text-text-secondary text-sm mt-0.5">
-            {SEGMENT_LABELS[segment].label} · {subTabLabel(subTab, segment)}
-          </p>
-        </div>
-        <PeriodChip value={period} onChange={setPeriod} />
-      </div>
+      <PageHeader
+        icon={<UsersIcon className="w-5 h-5" />}
+        title="Users"
+        subtitle={`${SEGMENT_LABELS[segment].label} · ${subTabLabel(subTab, segment)}`}
+        actions={<PeriodChip value={period} onChange={setPeriod} />}
+      />
 
       {/* Segment + Search */}
       <div className="flex flex-wrap items-center gap-3">

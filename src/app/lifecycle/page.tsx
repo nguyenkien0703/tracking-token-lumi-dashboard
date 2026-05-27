@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { CircleDot } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import type { Segment } from "@/lib/segment";
 import SegmentTabs from "@/components/SegmentTabs";
 import StatCard from "@/components/StatCard";
 import ResponsiveTable, { type Column } from "@/components/ResponsiveTable";
 import UserCell from "@/components/UserCell";
+import PageHeader from "@/components/ui/PageHeader";
+import RefreshButton from "@/components/ui/RefreshButton";
 import { fmtInt } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
 
@@ -199,31 +201,18 @@ export default function LifecyclePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-text-primary">Lifecycle</h1>
-          <p className="text-sm text-text-secondary mt-1">
-            Active (≤3d) / At-risk (4–30d) / Dormant (&gt;30d) / Never joined.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            fetchCounts();
-            fetchBucket(selectedBucket);
-          }}
-          disabled={isLoading}
-          aria-busy={isLoading}
-          aria-label={isLoading ? "Refreshing lifecycle data" : "Refresh lifecycle data"}
-          className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm transition-colors flex items-center gap-1.5"
-        >
-          {isLoading
-            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            : <RefreshCw className="w-3.5 h-3.5" />}
-          Refresh
-        </button>
-      </div>
+      <PageHeader
+        icon={<CircleDot className="w-5 h-5" />}
+        iconGradient="purple"
+        title="Lifecycle"
+        subtitle="Active (≤3d) / At-risk (4–30d) / Dormant (>30d) / Never joined."
+        actions={
+          <RefreshButton
+            onClick={() => { fetchCounts(); fetchBucket(selectedBucket); }}
+            loading={isLoading}
+          />
+        }
+      />
 
       {/* Segment tabs */}
       <SegmentTabs value={segment} onChange={setSegment} />
