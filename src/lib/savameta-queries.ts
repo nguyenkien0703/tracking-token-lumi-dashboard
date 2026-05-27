@@ -238,6 +238,7 @@ export type LifecycleUser = {
   email: string;
   full_name: string | null;
   display_name: string | null;
+  user_id: number | null;
   last_active_at: string | null;
   days_since_last_activity: number | null;
   bucket: LifecycleBucket;
@@ -255,6 +256,7 @@ export async function listUsersInBucket(
         r.email,
         r.full_name,
         NULLIF(TRIM(COALESCE(u."firstName",'') || ' ' || COALESCE(u."lastName",'')), '') AS display_name,
+        u."userId" AS user_id,
         u.last_active_at::text AS last_active_at,
         CASE WHEN u.last_active_at IS NOT NULL
           THEN EXTRACT(DAY FROM (NOW() - u.last_active_at))::int
@@ -286,6 +288,7 @@ export async function listUsersInBucket(
       u.email,
       NULL::text AS full_name,
       NULLIF(TRIM(COALESCE(u."firstName",'') || ' ' || COALESCE(u."lastName",'')), '') AS display_name,
+      u."userId" AS user_id,
       u.last_active_at::text AS last_active_at,
       CASE WHEN u.last_active_at IS NOT NULL
         THEN EXTRACT(DAY FROM (NOW() - u.last_active_at))::int
@@ -392,6 +395,7 @@ export type EngagementUserRow = {
   email: string;
   full_name: string | null;
   display_name: string | null;
+  user_id: number | null;
   conversations: number;
   turns: number;
   total_tokens: number;
@@ -409,6 +413,7 @@ export async function listEngagementByUser(segment: Segment = "savameta"): Promi
         r.email,
         r.full_name,
         NULLIF(TRIM(COALESCE(u."firstName",'') || ' ' || COALESCE(u."lastName",'')), '') AS display_name,
+        u."userId" AS user_id,
         COUNT(DISTINCT h."sessionId") FILTER (WHERE h."sessionId" IS NOT NULL)::int AS conversations,
         COUNT(h.id)::int AS turns,
         COALESCE(SUM(h."totalTokens"), 0)::bigint AS total_tokens,
@@ -418,7 +423,7 @@ export async function listEngagementByUser(segment: Segment = "savameta"): Promi
       INNER JOIN users u ON LOWER(u.email) = LOWER(r.email)
       LEFT JOIN history_entries h ON h."userId" = u."userId"
       WHERE u.email NOT LIKE '%@anon.lumilink'
-      GROUP BY r.email, r.full_name, u."firstName", u."lastName", u.last_active_at
+      GROUP BY r.email, r.full_name, u."userId", u."firstName", u."lastName", u.last_active_at
       ORDER BY total_cost_usd DESC
     `);
     return rows.map((row) => ({
@@ -435,6 +440,7 @@ export async function listEngagementByUser(segment: Segment = "savameta"): Promi
       u.email,
       NULL::text AS full_name,
       NULLIF(TRIM(COALESCE(u."firstName",'') || ' ' || COALESCE(u."lastName",'')), '') AS display_name,
+      u."userId" AS user_id,
       COUNT(DISTINCT h."sessionId") FILTER (WHERE h."sessionId" IS NOT NULL)::int AS conversations,
       COUNT(h.id)::int AS turns,
       COALESCE(SUM(h."totalTokens"), 0)::bigint AS total_tokens,
@@ -443,7 +449,7 @@ export async function listEngagementByUser(segment: Segment = "savameta"): Promi
     FROM users u
     LEFT JOIN history_entries h ON h."userId" = u."userId"
     WHERE ${segmentEmailClause(segment)}
-    GROUP BY u.email, u."firstName", u."lastName", u.last_active_at
+    GROUP BY u."userId", u.email, u."firstName", u."lastName", u.last_active_at
     ORDER BY total_cost_usd DESC
   `);
 
@@ -524,6 +530,7 @@ export type ReturningUser = {
   email: string;
   full_name: string | null;
   display_name: string | null;
+  user_id: number | null;
   returned_at: string;
   previous_active_at: string;
   idle_days: number;
@@ -579,6 +586,7 @@ export async function detectReturningUsers(
       ${emailExpr} AS email,
       ${fullNameExpr} AS full_name,
       NULLIF(TRIM(COALESCE(u."firstName",'') || ' ' || COALESCE(u."lastName",'')), '') AS display_name,
+      u."userId" AS user_id,
       l.returned_at::text,
       l.previous_active_at::text,
       ROUND(l.idle_days::numeric, 1)::float8 AS idle_days
@@ -596,6 +604,7 @@ export type FirstValueUser = {
   email: string;
   full_name: string | null;
   display_name: string | null;
+  user_id: number | null;
   first_value_at: string;
   session_id: string;
   turns_at_value: number;
@@ -638,6 +647,7 @@ export async function detectFirstValueUsers(segment: Segment = "savameta"): Prom
       ${emailExpr} AS email,
       ${fullNameExpr} AS full_name,
       NULLIF(TRIM(COALESCE(u."firstName",'') || ' ' || COALESCE(u."lastName",'')), '') AS display_name,
+      u."userId" AS user_id,
       f.ts::text AS first_value_at,
       f."sessionId" AS session_id,
       f.turn_no::int AS turns_at_value
