@@ -64,7 +64,7 @@ export default function SessionTable({
           <tbody className="divide-y divide-border-default/50">
             {entries.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={11} className="px-4 py-10 text-center text-text-muted">
                   No sessions found
                 </td>
               </tr>
@@ -118,7 +118,7 @@ export default function SessionTable({
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-slate-400">
+        <div className="flex items-center justify-between mt-3 text-sm text-text-muted">
           <span className="text-xs">
             {offset + 1}–{Math.min(offset + limit, total)} of {total.toLocaleString()} sessions
           </span>
