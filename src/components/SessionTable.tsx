@@ -13,6 +13,24 @@ interface Props {
   onPageChange: (offset: number) => void;
 }
 
+function calcBurnRate(
+  totalTokens: number,
+  firstTrackedAt: string,
+  lastTrackedAt: string
+): string {
+  if (!firstTrackedAt || !lastTrackedAt || firstTrackedAt === lastTrackedAt) {
+    return "—";
+  }
+  const hours =
+    (new Date(lastTrackedAt).getTime() - new Date(firstTrackedAt).getTime()) /
+    3_600_000;
+  if (hours < 0.01) return "—";
+  const rate = totalTokens / hours;
+  if (rate >= 1_000_000) return `${(rate / 1_000_000).toFixed(1)}M/hr`;
+  if (rate >= 1_000) return `${(rate / 1_000).toFixed(1)}k/hr`;
+  return `${Math.round(rate)}/hr`;
+}
+
 export default function SessionTable({
   entries,
   total,
@@ -26,59 +44,71 @@ export default function SessionTable({
 
   return (
     <div>
-      <div className="overflow-x-auto rounded-xl border border-slate-700">
+      <div className="overflow-x-auto rounded-xl border border-border-default">
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
+          <thead className="bg-surface-2 text-text-muted text-xs uppercase tracking-wider">
             <tr>
               <th className="px-3 py-3 w-10 text-center">#</th>
               <th className="px-3 py-3">Title</th>
-              <th className="px-3 py-3 text-right">Prompt</th>
-              <th className="px-3 py-3 text-right">Completion</th>
-              <th className="px-3 py-3 text-right">Total Tokens</th>
-              <th className="px-3 py-3 text-right">Requests</th>
+              <th className="px-3 py-3 text-right">Turns</th>
+              <th className="px-3 py-3 text-right">Input Tokens</th>
+              <th className="px-3 py-3 text-right">Output Tokens</th>
+              <th className="px-3 py-3 text-right">Cache Write</th>
+              <th className="px-3 py-3 text-right">Cache Hit</th>
+              <th className="px-3 py-3 text-right">Saving ($)</th>
+              <th className="px-3 py-3 text-right">Burn Rate</th>
               <th className="px-3 py-3 text-right">Cost</th>
               <th className="px-3 py-3">Created At</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-700/50">
+          <tbody className="divide-y divide-border-default/50">
             {entries.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={11} className="px-4 py-10 text-center text-slate-500">
                   No sessions found
                 </td>
               </tr>
             )}
             {entries.map((e, i) => (
-              <tr key={e.sessionId} className="bg-slate-900/50 hover:bg-slate-800/60 transition-colors">
-                <td className="px-3 py-2.5 text-center text-slate-500 text-xs tabular-nums">
+              <tr key={e.sessionId} className="hover:bg-surface-2/50 transition-colors">
+                <td className="px-3 py-2.5 text-center text-text-muted text-xs tabular-nums">
                   {offset + i + 1}
                 </td>
-                <td className="px-3 py-2.5 max-w-[220px]">
+                <td className="px-3 py-2.5 max-w-[200px]">
                   <Link
                     href={`/sessions/${e.sessionId}?userId=${userId}`}
-                    className="text-indigo-400 hover:text-indigo-300 hover:underline text-sm font-medium truncate block"
+                    className="text-primary hover:underline text-sm font-medium truncate block"
                     title={e.title ?? e.sessionId}
                   >
-                    {e.title || <span className="text-slate-500 italic">Untitled</span>}
+                    {e.title || <span className="text-text-muted italic">Untitled</span>}
                   </Link>
-                  <span className="text-slate-600 font-mono text-xs">{e.sessionId.slice(0, 12)}…</span>
+                  <span className="text-text-muted font-mono text-xs">{e.sessionId.slice(0, 12)}…</span>
                 </td>
-                <td className="px-3 py-2.5 text-right text-slate-300 text-xs">
-                  {e.totalPromptTokens.toLocaleString()}
-                </td>
-                <td className="px-3 py-2.5 text-right text-slate-300 text-xs">
-                  {e.totalCompletionTokens.toLocaleString()}
-                </td>
-                <td className="px-3 py-2.5 text-right font-semibold text-indigo-300 text-xs">
-                  {e.totalTokens.toLocaleString()}
-                </td>
-                <td className="px-3 py-2.5 text-right text-slate-300 text-xs">
+                <td className="px-3 py-2.5 text-right text-warning text-xs tabular-nums">
                   {e.requestCount}
                 </td>
-                <td className="px-3 py-2.5 text-right font-semibold text-emerald-400 text-xs">
+                <td className="px-3 py-2.5 text-right text-text-secondary text-xs tabular-nums">
+                  {e.totalPromptTokens.toLocaleString()}
+                </td>
+                <td className="px-3 py-2.5 text-right text-text-secondary text-xs tabular-nums">
+                  {e.totalCompletionTokens.toLocaleString()}
+                </td>
+                <td className="px-3 py-2.5 text-right text-text-muted text-xs tabular-nums">
+                  {(e.cacheWriteTokens ?? 0).toLocaleString()}
+                </td>
+                <td className="px-3 py-2.5 text-right text-text-muted text-xs tabular-nums">
+                  {(e.cacheHitTokens ?? 0).toLocaleString()}
+                </td>
+                <td className="px-3 py-2.5 text-right text-text-muted text-xs tabular-nums">
+                  ${(e.cacheSavingUsd ?? 0).toFixed(4)}
+                </td>
+                <td className="px-3 py-2.5 text-right text-primary/70 text-xs tabular-nums font-mono">
+                  {calcBurnRate(e.totalTokens, e.firstTrackedAt, e.lastTrackedAt)}
+                </td>
+                <td className="px-3 py-2.5 text-right font-semibold text-success text-xs tabular-nums">
                   ${e.totalCostUsd.toFixed(4)}
                 </td>
-                <td className="px-3 py-2.5 text-slate-400 text-xs whitespace-nowrap">
+                <td className="px-3 py-2.5 text-text-muted text-xs whitespace-nowrap">
                   {e.sessionCreatedAt ? format(parseISO(e.sessionCreatedAt), "MM/dd HH:mm") : "—"}
                 </td>
               </tr>
@@ -96,7 +126,7 @@ export default function SessionTable({
             <button
               disabled={page === 1}
               onClick={() => onPageChange(Math.max(0, offset - limit))}
-              className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs"
+              className="px-3 py-1 rounded bg-surface-2 hover:bg-surface text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs"
             >
               ← Prev
             </button>
@@ -104,7 +134,7 @@ export default function SessionTable({
             <button
               disabled={page >= totalPages}
               onClick={() => onPageChange(offset + limit)}
-              className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs"
+              className="px-3 py-1 rounded bg-surface-2 hover:bg-surface text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs"
             >
               Next →
             </button>
