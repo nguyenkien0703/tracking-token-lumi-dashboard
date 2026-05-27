@@ -1,121 +1,81 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { DateRange } from "@/types";
-import { format, subDays, startOfMonth, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, startOfMonth } from "date-fns";
 
-interface Props {
-  value: DateRange;
-  onChange: (range: DateRange) => void;
-}
+type Period = "today" | "7d" | "30d" | "month" | "custom";
 
-type Preset = "today" | "7d" | "30d" | "month" | null;
-
-const PRESETS: { key: Preset; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "7d", label: "Last 7d" },
-  { key: "30d", label: "Last 30d" },
-  { key: "month", label: "This month" },
+const PILLS: { id: Period; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "7d",    label: "Last 7d" },
+  { id: "30d",   label: "Last 30d" },
+  { id: "month", label: "This month" },
 ];
 
-function toISO(d: Date) {
-  return d.toISOString();
-}
-
-function toInputValue(iso: string) {
-  return iso ? format(new Date(iso), "yyyy-MM-dd") : "";
-}
-
-function presetRange(preset: Preset): DateRange {
-  const now = new Date();
-  switch (preset) {
-    case "today":
-      return { from: toISO(startOfDay(now)), to: toISO(endOfDay(now)) };
-    case "7d":
-      return { from: toISO(startOfDay(subDays(now, 6))), to: toISO(endOfDay(now)) };
-    case "30d":
-      return { from: toISO(startOfDay(subDays(now, 29))), to: toISO(endOfDay(now)) };
-    case "month":
-      return { from: toISO(startOfMonth(now)), to: toISO(endOfDay(now)) };
-    default:
-      return { from: "", to: "" };
+function periodToRange(period: Period): DateRange {
+  const today = new Date();
+  const fmt = (d: Date) => format(d, "yyyy-MM-dd");
+  switch (period) {
+    case "today":  return { from: fmt(today), to: fmt(today) };
+    case "7d":     return { from: fmt(subDays(today, 7)), to: fmt(today) };
+    case "30d":    return { from: fmt(subDays(today, 30)), to: fmt(today) };
+    case "month":  return { from: fmt(startOfMonth(today)), to: fmt(today) };
+    default:       return { from: "", to: "" };
   }
 }
 
+interface Props {
+  value: DateRange;
+  onChange: (range: DateRange, period?: Period) => void;
+}
+
 export default function DateRangePicker({ value, onChange }: Props) {
-  const [activePreset, setActivePreset] = useState<Preset>(null);
+  const [activePeriod, setActivePeriod] = useState<Period>("7d");
 
-  // Detect if value matches a preset (e.g. on initial render)
-  useEffect(() => {
-    if (!value.from && !value.to) {
-      setActivePreset(null);
-    }
-  }, [value]);
-
-  const handlePreset = (preset: Preset) => {
-    setActivePreset(preset);
-    onChange(presetRange(preset));
+  const handlePill = (period: Period) => {
+    setActivePeriod(period);
+    onChange(periodToRange(period), period);
   };
 
-  const handleFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setActivePreset(null);
-    const d = e.target.value ? toISO(startOfDay(new Date(e.target.value))) : "";
-    onChange({ ...value, from: d });
-  };
-
-  const handleToChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setActivePreset(null);
-    const d = e.target.value ? toISO(endOfDay(new Date(e.target.value))) : "";
-    onChange({ ...value, to: d });
-  };
-
-  const handleClear = () => {
-    setActivePreset(null);
-    onChange({ from: "", to: "" });
+  const handleDateInput = (field: "from" | "to", val: string) => {
+    setActivePeriod("custom");
+    onChange({ ...value, [field]: val });
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Preset buttons */}
+    <div className="flex items-center gap-2 flex-wrap">
+      {/* Period pills */}
       <div className="flex items-center gap-1">
-        {PRESETS.map((p) => (
+        {PILLS.map((p) => (
           <button
-            key={p.key}
-            onClick={() => handlePreset(p.key)}
-            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-              activePreset === p.key
-                ? "bg-indigo-600 text-white"
-                : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-slate-100"
+            key={p.id}
+            onClick={() => handlePill(p.id)}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              activePeriod === p.id
+                ? "bg-primary text-white"
+                : "bg-surface-2 text-text-secondary hover:text-text-primary border border-border-default"
             }`}
           >
             {p.label}
           </button>
         ))}
-        {(value.from || value.to) && (
-          <button
-            onClick={handleClear}
-            className="text-xs px-2 py-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-900/20 transition-colors"
-            title="Clear filter"
-          >
-            ✕
-          </button>
-        )}
       </div>
 
       {/* Date inputs */}
       <div className="flex items-center gap-1.5">
         <input
           type="date"
-          value={toInputValue(value.from)}
-          onChange={handleFromChange}
-          className="bg-slate-800 border border-slate-600 text-slate-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+          value={value.from}
+          onChange={(e) => handleDateInput("from", e.target.value)}
+          className="bg-surface border border-border-default rounded-md px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-primary"
         />
-        <span className="text-slate-500 text-xs">→</span>
+        <span className="text-text-muted text-xs">→</span>
         <input
           type="date"
-          value={toInputValue(value.to)}
-          onChange={handleToChange}
-          className="bg-slate-800 border border-slate-600 text-slate-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+          value={value.to}
+          onChange={(e) => handleDateInput("to", e.target.value)}
+          className="bg-surface border border-border-default rounded-md px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-primary"
         />
       </div>
     </div>
