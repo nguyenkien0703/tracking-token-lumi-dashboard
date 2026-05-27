@@ -2,12 +2,18 @@
 
 import { useState } from "react";
 import { Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import { TopBarProvider } from "@/lib/topbar-context";
 
 export default function AppShell({ children, isAdmin }: { children: React.ReactNode; isAdmin?: boolean }) {
+  const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  if (pathname === "/login") {
+    return <TopBarProvider>{children}</TopBarProvider>;
+  }
 
   return (
     <TopBarProvider>
