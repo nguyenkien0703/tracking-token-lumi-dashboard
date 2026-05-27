@@ -26,8 +26,8 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lumi Token Dashboard",
-  description: "DevOps monitoring dashboard for LumiLink token usage",
+  title: "LumiPulse — Token Analytics",
+  description: "Real-time token usage and adoption analytics for LumiLink",
 };
 
 function hashPassword(password: string): string {
