@@ -99,7 +99,9 @@ export async function GET(req: NextRequest) {
 
       let info: UserInfo | null = cached.rows[0] ?? null;
 
-      if (!info && token) {
+      // Sync backfill creates rows with empty email; treat empty as cache miss
+      const cacheMiss = !info || !info.email;
+      if (cacheMiss && token) {
         info = await fetchAndCacheUserInfo(row.userId, token);
       }
 

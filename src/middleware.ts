@@ -12,7 +12,6 @@ async function hashPassword(password: string): Promise<string> {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Only protect /admin/* but not the login page itself
   if (pathname === "/admin/login") return NextResponse.next();
 
   const sessionCookie = req.cookies.get("admin_session")?.value;
@@ -28,5 +27,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/settings/:path*"],
 };

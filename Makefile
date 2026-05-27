@@ -1,8 +1,10 @@
 staging:
-	docker compose -p lumi-staging --env-file .env.staging up --build -d
+	docker compose -p lumi-staging --env-file .env.staging pull dashboard
+	docker compose -p lumi-staging --env-file .env.staging up -d
 
 production:
-	docker compose -p lumi-production --env-file .env.production up --build -d
+	docker compose -p lumi-production --env-file .env.production pull dashboard
+	docker compose -p lumi-production --env-file .env.production up -d
 
 down-staging:
 	docker compose -p lumi-staging --env-file .env.staging down

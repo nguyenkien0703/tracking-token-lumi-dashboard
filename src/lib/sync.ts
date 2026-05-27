@@ -3,7 +3,7 @@ import { getAdminToken } from "./auth";
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "";
 const PAGE_SIZE = 1000;
-const MAX_RECORDS = 50000;
+const MAX_RECORDS = 200000;
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
 let syncPromise: Promise<void> | null = null;
@@ -85,17 +85,19 @@ async function doSync(): Promise<void> {
         e.totalTokens ?? 0,
         e.totalCostUsd ?? 0,
         e.createdAt ?? null,
+        e.cacheReadTokens ?? 0,
       ]);
 
       for (const row of values) {
         await pool.query(
           `INSERT INTO history_entries
-             (id, "userId", "sessionId", model, "promptTokens", "completionTokens", "totalTokens", "totalCostUsd", "createdAt")
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+             (id, "userId", "sessionId", model, "promptTokens", "completionTokens", "totalTokens", "totalCostUsd", "createdAt", cache_read_tokens)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
            ON CONFLICT (id) DO UPDATE SET
              "userId"=$2, "sessionId"=$3, model=$4,
              "promptTokens"=$5, "completionTokens"=$6,
-             "totalTokens"=$7, "totalCostUsd"=$8, "createdAt"=$9`,
+             "totalTokens"=$7, "totalCostUsd"=$8, "createdAt"=$9,
+             cache_read_tokens=$10`,
           row
         );
       }
@@ -103,6 +105,50 @@ async function doSync(): Promise<void> {
       fetched += entries.length;
       offset += PAGE_SIZE;
     } while (fetched < total && fetched < MAX_RECORDS);
+
+    // Backfill first_seen_at / last_active_at on users from history_entries
+    await pool.query(`
+      INSERT INTO users ("userId", first_seen_at, last_active_at)
+      SELECT
+        h."userId",
+        MIN(h."createdAt"::timestamptz),
+        MAX(h."createdAt"::timestamptz)
+      FROM history_entries h
+      WHERE h."userId" IS NOT NULL
+      GROUP BY h."userId"
+      ON CONFLICT ("userId") DO UPDATE SET
+        first_seen_at = LEAST(users.first_seen_at, EXCLUDED.first_seen_at),
+        last_active_at = GREATEST(users.last_active_at, EXCLUDED.last_active_at)
+    `);
+
+    // Sync user profiles (email, name) from admin/users
+    try {
+      const profileRes = await fetch(`${API_BASE_URL}/admin/users?limit=10000`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (profileRes.ok) {
+        const profileJson = await profileRes.json();
+        const profiles: Array<Record<string, unknown>> = profileJson?.data ?? [];
+        for (const p of profiles) {
+          if (!p.id) continue;
+          await pool.query(
+            `INSERT INTO users ("userId", email, "firstName", "lastName", "userName", "avatarUrl")
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT ("userId") DO UPDATE SET
+               email      = COALESCE(EXCLUDED.email, users.email),
+               "firstName"= COALESCE(EXCLUDED."firstName", users."firstName"),
+               "lastName" = COALESCE(EXCLUDED."lastName", users."lastName"),
+               "userName" = COALESCE(EXCLUDED."userName", users."userName"),
+               "avatarUrl"= COALESCE(EXCLUDED."avatarUrl", users."avatarUrl")`,
+            [p.id, p.email ?? null, p.firstName ?? null, p.lastName ?? null, p.userName ?? null, p.avatarUrl ?? null]
+          );
+        }
+        console.log(`[sync] User profiles synced: ${profiles.length}`);
+      }
+    } catch (profileErr) {
+      console.warn("[sync] User profile sync failed (non-fatal):", profileErr);
+    }
 
     await pool.query(
       `UPDATE sync_state SET "lastSyncAt"=$1, "totalRecords"=$2, status='idle' WHERE id=1`,
@@ -121,9 +167,18 @@ async function doSync(): Promise<void> {
  * Trigger sync if data is stale.
  * - blocking=true: await completion (used when DB is empty)
  * - blocking=false: fire-and-forget
+ *
+ * Sync errors never bubble out when blocking=false — pages must render stale
+ * data instead of returning 500. When blocking=true (DB empty) errors do
+ * surface, since there is nothing to render.
  */
 export async function syncIfStale(blocking = false): Promise<void> {
-  if (!(await isStale())) return;
+  try {
+    if (!(await isStale())) return;
+  } catch (err) {
+    console.warn("[sync] isStale check failed, skipping:", err);
+    return;
+  }
 
   if (!syncPromise) {
     syncPromise = doSync().finally(() => {
@@ -131,7 +186,15 @@ export async function syncIfStale(blocking = false): Promise<void> {
     });
   }
 
-  if (blocking) await syncPromise;
+  if (blocking) {
+    await syncPromise;
+    return;
+  }
+
+  // fire-and-forget: swallow errors so callers (with cached DB data) never 500
+  syncPromise.catch((err) => {
+    console.warn("[sync] background sync failed:", err);
+  });
 }
 
 /** Force sync regardless of staleness (used by manual refresh) */

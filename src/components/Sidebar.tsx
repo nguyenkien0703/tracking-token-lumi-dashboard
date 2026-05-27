@@ -2,65 +2,150 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  Home,
+  Users,
+  BarChart3,
+  Activity,
+  RotateCcw,
+  Zap,
+  Tag,
+  Settings,
+  AlertCircle,
+  UsersRound,
+  RefreshCw,
+} from "lucide-react";
 
-const navItems = [
+type NavItem = {
+  href: string;
+  label: string;
+  Icon: typeof Home;
+};
+
+type NavSection = {
+  title: string | null;
+  items: NavItem[];
+};
+
+const sections: NavSection[] = [
   {
-    href: "/",
-    label: "Overview",
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    ),
+    title: "DASHBOARD",
+    items: [
+      { href: "/", label: "Overview", Icon: Home },
+      { href: "/users", label: "Users", Icon: Users },
+      { href: "/engagement", label: "Engagement", Icon: Zap },
+      { href: "/activity", label: "Activity", Icon: Activity },
+      { href: "/lifecycle", label: "Lifecycle", Icon: RotateCcw },
+      { href: "/triggers", label: "Triggers", Icon: AlertCircle },
+      { href: "/savameta/adoption", label: "Adoption", Icon: BarChart3 },
+    ],
+  },
+  {
+    title: "SETTINGS",
+    items: [
+      { href: "/settings/roster", label: "Roster", Icon: UsersRound },
+      { href: "/settings/releases", label: "Releases", Icon: Tag },
+      { href: "/settings", label: "Sync Status", Icon: RefreshCw },
+      { href: "/admin/settings", label: "Admin", Icon: Settings },
+    ],
   },
 ];
 
-export default function Sidebar({ onClose }: { onClose?: () => void }) {
+function isItemActive(itemHref: string, pathname: string): boolean {
+  if (itemHref === "/") return pathname === "/";
+  if (itemHref === "/settings") return pathname === "/settings";
+  return pathname.startsWith(itemHref);
+}
+
+type Props = {
+  variant: "rail" | "full";
+  isAdmin?: boolean;
+  onClose?: () => void;
+};
+
+export default function Sidebar({ variant, isAdmin, onClose }: Props) {
   const pathname = usePathname();
+  const isRail = variant === "rail";
+  const visibleSections = isAdmin ? sections : sections.filter((s) => s.title !== "SETTINGS");
 
   return (
-    <aside className="h-full w-56 bg-slate-900 border-r border-slate-700 flex flex-col">
-      <div className="px-4 py-5 border-b border-slate-700">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
+    <aside
+      className={`h-full bg-surface border-r border-border-default flex flex-col ${
+        isRail ? "w-14" : "w-56"
+      }`}
+    >
+      <div className={`border-b border-border-default ${isRail ? "py-3 flex justify-center" : "px-4 py-5"}`}>
+        {isRail ? (
+          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
+            <BarChart3 className="w-4 h-4 text-white" />
           </div>
-          <div>
-            <p className="text-slate-100 text-sm font-semibold leading-tight">Lumi Token</p>
-            <p className="text-slate-400 text-xs">Dashboard</p>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded bg-primary flex items-center justify-center">
+              <BarChart3 className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-text-primary text-sm font-semibold leading-tight">Lumi Token</p>
+              <p className="text-text-secondary text-xs">Dashboard</p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => {
-          const isActive =
-            item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                isActive
-                  ? "bg-indigo-600 text-white"
-                  : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
-              }`}
-            >
-              {item.icon}
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className={`flex-1 overflow-y-auto py-4 ${isRail ? "px-2 space-y-3" : "px-3 space-y-4"}`}>
+        {visibleSections.map((section) => (
+          <div key={section.title ?? "_default"} className={isRail ? "space-y-1" : "space-y-1"}>
+            {!isRail && section.title && (
+              <p className="px-3 py-1 text-[10px] font-semibold tracking-wider text-text-muted uppercase">
+                {section.title}
+              </p>
+            )}
+            {section.items.map((item) => {
+              const active = isItemActive(item.href, pathname);
+              if (isRail) {
+                return (
+                  <div key={item.href} className="relative group">
+                    <Link
+                      href={item.href}
+                      onClick={onClose}
+                      aria-label={item.label}
+                      className={`flex items-center justify-center w-10 h-10 mx-auto rounded-lg transition-colors ${
+                        active
+                          ? "bg-primary/15 text-primary border-l-2 border-primary"
+                          : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
+                      }`}
+                    >
+                      <item.Icon className="w-5 h-5" />
+                    </Link>
+                    <span
+                      role="tooltip"
+                      className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-surface-2 border border-border-default rounded text-xs text-text-primary whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50"
+                    >
+                      {item.label}
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onClose}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    active
+                      ? "bg-primary/15 text-primary"
+                      : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
+                  }`}
+                >
+                  <item.Icon className="w-5 h-5" />
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
-      <div className="px-4 py-3 border-t border-slate-700">
-        <p className="text-slate-500 text-xs truncate">
-          {process.env.NEXT_PUBLIC_API_BASE_URL || "API URL not set"}
-        </p>
-      </div>
     </aside>
   );
 }

@@ -14,10 +14,12 @@ export async function GET(req: NextRequest) {
   const limit = sp.get("limit");
   const from = sp.get("from");
   const to = sp.get("to");
+  const segment = sp.get("segment");
   if (sortBy) params.set("sortBy", sortBy);
   if (limit) params.set("limit", limit);
   if (from) params.set("from", from);
   if (to) params.set("to", to);
+  if (segment) params.set("segment", segment);
 
   const doFetch = async (token: string) =>
     fetch(`${API_BASE_URL}/admin/costs/top-users?${params}`, {
