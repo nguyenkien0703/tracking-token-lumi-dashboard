@@ -35,8 +35,13 @@ export async function GET(req: NextRequest) {
     const { id_token } = await exchangeCodeForTokens(code);
     profile = await verifyGoogleIdToken(id_token, nonceCookie);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown_error";
-    return redirectToLogin(req, msg);
+    const fullMsg = err instanceof Error ? err.message : "unknown_error";
+    console.error("[auth/callback] OAuth verification failed:", fullMsg);
+    // Map to short stable tag — never put raw error into redirect URL
+    const tag = fullMsg.startsWith("token_exchange_failed")
+      ? "token_exchange_failed"
+      : fullMsg;
+    return redirectToLogin(req, tag);
   }
 
   const isAdmin = computeIsAdmin(profile.email);
