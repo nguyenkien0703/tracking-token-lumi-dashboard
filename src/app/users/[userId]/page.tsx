@@ -38,6 +38,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
 
   const [comparison, setComparison] = useState<CostComparison | null>(null);
   const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
+  const [loadingDaily, setLoadingDaily] = useState(true);
   const [alertThreshold, setAlertThreshold] = useState<number | null>(null);
 
   const userName = userInfo
@@ -85,6 +86,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
 
   const fetchDailyAndComparison = useCallback(async () => {
     if (!dateRange.from || !dateRange.to) return;
+    setLoadingDaily(true);
     try {
       const [daily, comp] = await Promise.all([
         getDailyBreakdown(userId, dateRange.from, dateRange.to),
@@ -96,6 +98,8 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
       setComparison(comp);
     } catch {
       // non-critical
+    } finally {
+      setLoadingDaily(false);
     }
   }, [userId, dateRange, activePeriod]);
 
@@ -124,7 +128,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
     : "U";
 
   return (
-    <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+    <div>
 
       {/* User header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
@@ -235,8 +239,8 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
         <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0", marginBottom: 12 }}>
           Token Usage Over Time
         </div>
-        {loadingSessions ? (
-          <div style={{ height: 140, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }}>
+        {loadingDaily ? (
+          <div style={{ height: 140, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }} className="animate-pulse">
             Loading chart...
           </div>
         ) : (

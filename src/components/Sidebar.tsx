@@ -2,24 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Home,
-  Users,
-  BarChart3,
-  Activity,
-  RotateCcw,
-  Zap,
-  Tag,
-  Settings,
-  AlertCircle,
-  UsersRound,
-  RefreshCw,
-} from "lucide-react";
 
 type NavItem = {
   href: string;
   label: string;
-  Icon: typeof Home;
+  emoji: string;
 };
 
 type NavSection = {
@@ -31,22 +18,22 @@ const sections: NavSection[] = [
   {
     title: "Dashboard",
     items: [
-      { href: "/", label: "Overview", Icon: Home },
-      { href: "/users", label: "Users", Icon: Users },
-      { href: "/engagement", label: "Engagement", Icon: Zap },
-      { href: "/activity", label: "Activity", Icon: Activity },
-      { href: "/lifecycle", label: "Lifecycle", Icon: RotateCcw },
-      { href: "/triggers", label: "Triggers", Icon: AlertCircle },
-      { href: "/savameta/adoption", label: "Adoption", Icon: BarChart3 },
+      { href: "/", label: "Overview", emoji: "🏠" },
+      { href: "/users", label: "Users", emoji: "👥" },
+      { href: "/engagement", label: "Engagement", emoji: "⚡" },
+      { href: "/activity", label: "Activity", emoji: "📊" },
+      { href: "/lifecycle", label: "Lifecycle", emoji: "🔄" },
+      { href: "/triggers", label: "Triggers", emoji: "⚠️" },
+      { href: "/savameta/adoption", label: "Adoption", emoji: "📈" },
     ],
   },
   {
     title: "Settings",
     items: [
-      { href: "/settings/roster", label: "Roster", Icon: UsersRound },
-      { href: "/settings/releases", label: "Releases", Icon: Tag },
-      { href: "/settings", label: "Sync Status", Icon: RefreshCw },
-      { href: "/admin/settings", label: "Admin", Icon: Settings },
+      { href: "/settings/roster", label: "Roster", emoji: "👥" },
+      { href: "/settings/releases", label: "Releases", emoji: "🏷️" },
+      { href: "/settings", label: "Sync Status", emoji: "🔄" },
+      { href: "/admin/settings", label: "Admin", emoji: "⚙️" },
     ],
   },
 ];
@@ -70,37 +57,40 @@ export default function Sidebar({ variant, isAdmin, onClose }: Props) {
 
   return (
     <aside
-      className={`h-full flex flex-col`}
       style={{
         width: isRail ? 56 : 200,
         background: "#141A2E",
         borderRight: "1px solid #252D4A",
         flexShrink: 0,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       {/* Logo */}
       <div style={{ padding: 16, borderBottom: "1px solid #252D4A", display: "flex", alignItems: "center", gap: 8 }}>
-        {isRail ? (
-          <div style={{ width: 28, height: 28, background: "#3B82F6", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <BarChart3 style={{ width: 14, height: 14, color: "white" }} />
+        <div style={{ width: 28, height: 28, background: "#3B82F6", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "white", flexShrink: 0 }}>
+          L
+        </div>
+        {!isRail && (
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "#F1F5F9", lineHeight: 1.2 }}>LumiPulse</p>
+            <p style={{ fontSize: 11, color: "#64748B", lineHeight: 1.2 }}>Token Analytics</p>
           </div>
-        ) : (
-          <>
-            <div style={{ width: 28, height: 28, background: "#3B82F6", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <BarChart3 style={{ width: 14, height: 14, color: "white" }} />
-            </div>
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "#F1F5F9", lineHeight: 1.2 }}>LumiPulse</p>
-              <p style={{ fontSize: 11, color: "#64748B", lineHeight: 1.2 }}>Token Analytics</p>
-            </div>
-          </>
         )}
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, overflowY: "auto", padding: "12px 10px 4px" }}>
-        {visibleSections.map((section) => (
-          <div key={section.title ?? "_default"} style={{ marginBottom: 8 }}>
+      <nav style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+        {visibleSections.map((section, sIdx) => (
+          <div
+            key={section.title ?? "_default"}
+            style={{
+              padding: "12px 10px 4px",
+              marginTop: sIdx > 0 ? "auto" : 0,
+              paddingBottom: sIdx > 0 ? 12 : 4,
+            }}
+          >
             {!isRail && section.title && (
               <p style={{ fontSize: 10, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 8px", marginBottom: 4 }}>
                 {section.title}
@@ -121,10 +111,12 @@ export default function Sidebar({ variant, isAdmin, onClose }: Props) {
                         color: active ? "#3B82F6" : "#64748B",
                         background: active ? "rgba(59,130,246,0.15)" : "transparent",
                         transition: "all 0.15s",
+                        fontSize: 16,
+                        textDecoration: "none",
                       }}
                       className={!active ? "hover:!bg-[#1B2240] hover:!text-[#94A3B8]" : ""}
                     >
-                      <item.Icon style={{ width: 16, height: 16 }} />
+                      <span aria-hidden>{item.emoji}</span>
                     </Link>
                     <span
                       role="tooltip"
@@ -152,7 +144,9 @@ export default function Sidebar({ variant, isAdmin, onClose }: Props) {
                   }}
                   className={!active ? "hover:!bg-[#1B2240] hover:!text-[#94A3B8]" : ""}
                 >
-                  <item.Icon style={{ width: 16, height: 16, opacity: 0.8, flexShrink: 0 }} />
+                  <span aria-hidden style={{ fontSize: 14, lineHeight: 1, flexShrink: 0, width: 16, textAlign: "center" }}>
+                    {item.emoji}
+                  </span>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
                 </Link>
               );
