@@ -179,7 +179,7 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
           value={summary ? `$${summary.totalCostUsd.toFixed(4)}` : "—"}
           hint="USD"
           loading={loadingSummary}
-          tone={alertThreshold && summary && summary.totalCostUsd > alertThreshold ? "warning" : "default"}
+          tone={alertThreshold !== null && summary && summary.totalCostUsd > alertThreshold ? "warning" : "default"}
           delta={
             comparison
               ? { value: calcDelta(comparison.current.totalCostUsd, comparison.previous.totalCostUsd), label: "vs prev period", positiveIsGood: false }
