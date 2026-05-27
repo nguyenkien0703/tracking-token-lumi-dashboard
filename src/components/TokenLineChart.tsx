@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  LineChart,
+  ComposedChart,
   Line,
   XAxis,
   YAxis,
@@ -10,60 +10,104 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { UserSessionEntry } from "@/types";
+import { DailyEntry } from "@/types";
 import { format, parseISO } from "date-fns";
 
 interface Props {
-  entries: UserSessionEntry[];
+  entries: DailyEntry[];
+}
+
+function formatTokens(val: number): string {
+  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`;
+  if (val >= 1_000) return `${(val / 1_000).toFixed(0)}k`;
+  return String(val);
+}
+
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-surface-2 border border-border-default rounded-lg px-3 py-2 text-xs shadow-lg">
+      <p className="text-text-secondary mb-1">{label}</p>
+      {payload.map((p: any) => (
+        <p key={p.name} style={{ color: p.color }} className="font-semibold">
+          {p.name === "totalTokens"
+            ? `${formatTokens(p.value)} tokens`
+            : `$${p.value.toFixed(4)}`}
+        </p>
+      ))}
+    </div>
+  );
 }
 
 export default function TokenLineChart({ entries }: Props) {
-  const byDay: Record<string, { key: string; date: string; tokens: number; cost: number; requests: number }> = {};
-
-  for (const e of entries) {
-    if (!e.sessionCreatedAt) continue;
-    const key = format(parseISO(e.sessionCreatedAt), "yyyy-MM-dd");
-    const label = format(parseISO(e.sessionCreatedAt), "MM/dd");
-    if (!byDay[key]) byDay[key] = { key, date: label, tokens: 0, cost: 0, requests: 0 };
-    byDay[key].tokens += e.totalTokens;
-    byDay[key].cost = parseFloat((byDay[key].cost + e.totalCostUsd).toFixed(4));
-    byDay[key].requests += e.requestCount;
-  }
-
-  const data = Object.values(byDay).sort((a, b) => a.key.localeCompare(b.key));
+  const data = entries.map((e) => ({
+    ...e,
+    label: format(parseISO(e.date), "MM/dd"),
+  }));
 
   if (data.length === 0) {
     return (
-      <div className="h-48 flex items-center justify-center text-slate-500 text-sm">
-        No data in selected range
+      <div className="h-40 flex items-center justify-center text-text-muted text-sm">
+        No data
       </div>
     );
   }
 
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-        <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} />
-        <YAxis yAxisId="tokens" tick={{ fill: "#94a3b8", fontSize: 11 }} />
-        <YAxis yAxisId="cost" orientation="right" tick={{ fill: "#94a3b8", fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
-        <Tooltip
-          contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #475569", borderRadius: 8 }}
-          labelStyle={{ color: "#cbd5e1" }}
-          itemStyle={{ color: "#94a3b8" }}
-          formatter={(value: number, name: string) =>
-            name === "cost" ? [`$${value}`, "Cost USD"] : [value.toLocaleString(), name === "tokens" ? "Total Tokens" : "Requests"]
-          }
+    <ResponsiveContainer width="100%" height={160}>
+      <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
+        <XAxis
+          dataKey="label"
+          tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+          axisLine={false}
+          tickLine={false}
         />
+        <YAxis
+          yAxisId="tokens"
+          orientation="left"
+          tickFormatter={formatTokens}
+          tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+          axisLine={false}
+          tickLine={false}
+          width={44}
+        />
+        <YAxis
+          yAxisId="cost"
+          orientation="right"
+          tickFormatter={(v) => `$${v.toFixed(2)}`}
+          tick={{ fontSize: 10, fill: "#10B981" }}
+          axisLine={false}
+          tickLine={false}
+          width={48}
+        />
+        <Tooltip content={<CustomTooltip />} />
         <Legend
-          formatter={(value) =>
-            value === "tokens" ? "Total Tokens" : value === "cost" ? "Cost USD" : "Requests"
-          }
-          wrapperStyle={{ color: "#94a3b8", fontSize: 12 }}
+          iconType="circle"
+          iconSize={8}
+          wrapperStyle={{ fontSize: 11, color: "var(--text-secondary)" }}
+          formatter={(val) => val === "totalTokens" ? "Total Tokens" : "Cost USD"}
         />
-        <Line yAxisId="tokens" type="monotone" dataKey="tokens" stroke="#6366f1" strokeWidth={2} dot={false} />
-        <Line yAxisId="cost" type="monotone" dataKey="cost" stroke="#10b981" strokeWidth={2} dot={false} />
-      </LineChart>
+        <Line
+          yAxisId="tokens"
+          type="monotone"
+          dataKey="totalTokens"
+          stroke="#3B82F6"
+          strokeWidth={2}
+          dot={{ r: 3, fill: "#3B82F6" }}
+          activeDot={{ r: 4 }}
+        />
+        <Line
+          yAxisId="cost"
+          type="monotone"
+          dataKey="totalCostUsd"
+          stroke="#10B981"
+          strokeWidth={1.5}
+          strokeDasharray="4 2"
+          dot={{ r: 2.5, fill: "#10B981" }}
+          activeDot={{ r: 4 }}
+        />
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }
