@@ -75,6 +75,7 @@ export async function verifyGoogleIdToken(
   const { payload } = await jwtVerify(idToken, JWKS, {
     issuer: GOOGLE_ISSUER,
     audience: clientId,
+    algorithms: ["RS256"],
   });
 
   if (payload.hd !== ALLOWED_HD) throw new Error("domain_not_allowed");
