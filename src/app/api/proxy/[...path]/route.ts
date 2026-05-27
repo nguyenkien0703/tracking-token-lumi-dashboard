@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminToken, forceRefresh } from "@/lib/auth";
+import { getSessionFromRequest } from "@/lib/session";
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "";
 
 type Context = { params: { path: string[] } };
 
 async function handler(req: NextRequest, context: Context) {
+  const session = await getSessionFromRequest(req);
+  if (!session) {
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  }
+
   if (!API_BASE_URL) {
     return NextResponse.json({ error: "API_BASE_URL not configured" }, { status: 503 });
   }
