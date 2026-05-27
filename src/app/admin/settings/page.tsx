@@ -62,8 +62,8 @@ export default function AdminSettingsPage() {
 
   const handleLogout = async () => {
     setLoggingOut(true);
-    await fetch("/api/admin/auth", { method: "DELETE" });
-    router.push("/admin/login");
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
   };
 
   const isOk = tokenStatus.status === "ok" && tokenStatus.hasToken;
