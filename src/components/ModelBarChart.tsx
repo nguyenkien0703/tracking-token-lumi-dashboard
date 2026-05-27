@@ -37,18 +37,20 @@ export default function ModelBarChart({ modelUsage }: Props) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 40 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
         <XAxis
           dataKey="model"
-          tick={{ fill: "#94a3b8", fontSize: 10 }}
+          tick={{ fill: "var(--text-muted)", fontSize: 10 }}
           angle={-20}
           textAnchor="end"
           interval={0}
+          axisLine={false}
+          tickLine={false}
         />
-        <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} />
+        <YAxis tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} width={40} />
         <Tooltip
-          contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #475569", borderRadius: 8 }}
-          labelStyle={{ color: "#cbd5e1" }}
+          contentStyle={{ backgroundColor: "var(--bg-surface-2)", border: "1px solid var(--border-default)", borderRadius: 8 }}
+          labelStyle={{ color: "var(--text-secondary)" }}
           formatter={(value: number, name: string) =>
             name === "costUsd" ? [`$${value.toFixed(4)}`, "Cost USD"] : [value.toLocaleString(), "Tokens"]
           }

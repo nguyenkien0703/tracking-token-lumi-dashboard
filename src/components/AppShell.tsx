@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
+import TopBar from "./TopBar";
+import { TopBarProvider } from "@/lib/topbar-context";
 
 export default function AppShell({ children, isAdmin }: { children: React.ReactNode; isAdmin?: boolean }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
-    <>
+    <TopBarProvider>
       {/* Mobile drawer overlay */}
       {drawerOpen && (
         <div
@@ -35,7 +37,7 @@ export default function AppShell({ children, isAdmin }: { children: React.ReactN
         <Sidebar variant="full" isAdmin={isAdmin} />
       </div>
 
-      {/* Mobile top bar */}
+      {/* Mobile top bar (hamburger) */}
       <div className="fixed top-0 left-0 right-0 h-12 bg-surface border-b border-border-default flex items-center px-4 z-10 md:hidden">
         <button
           onClick={() => setDrawerOpen(true)}
@@ -47,10 +49,16 @@ export default function AppShell({ children, isAdmin }: { children: React.ReactN
         <span className="ml-2 text-text-primary text-sm font-semibold">LumiPulse</span>
       </div>
 
-      {/* Main content */}
-      <main className="min-h-screen pt-12 md:pt-0 md:ml-14 lg:ml-56 px-4 md:px-5 lg:px-6 py-6">
-        {children}
-      </main>
-    </>
+      {/* Main content with TopBar */}
+      <div className="min-h-screen pt-12 md:pt-0 md:ml-14 lg:ml-[200px] flex flex-col">
+        {/* Sticky TopBar — desktop/tablet only */}
+        <div className="hidden md:block">
+          <TopBar />
+        </div>
+        <main className="flex-1 px-6 py-5">
+          {children}
+        </main>
+      </div>
+    </TopBarProvider>
   );
 }

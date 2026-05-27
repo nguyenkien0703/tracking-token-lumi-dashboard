@@ -1,27 +1,54 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import { getUserCost, getUserSessions } from "@/lib/api";
-import { UserCostSummary, UserSessionsData, DateRange } from "@/types";
-import StatCard from "@/components/StatCardLegacy";
-import DateRangePicker from "@/components/DateRangePicker";
+import { subDays, format } from "date-fns";
+import {
+  getUserCost,
+  getUserCostComparison,
+  getUserSessions,
+  getDailyBreakdown,
+  computeAlertThreshold,
+} from "@/lib/api";
+import type { CostComparison } from "@/lib/api";
+import { UserCostSummary, UserSessionsData, DailyEntry } from "@/types";
+import StatCard from "@/components/StatCard";
 import TokenLineChart from "@/components/TokenLineChart";
 import SessionTable from "@/components/SessionTable";
+import { useTopBar } from "@/lib/topbar-context";
+import { usePageSetup } from "@/lib/use-page-setup";
 
 const LIMIT = 50;
 
+function calcDelta(current: number, previous: number): number {
+  if (!previous) return 0;
+  return ((current - previous) / previous) * 100;
+}
+
 export default function UserDetailPage({ params }: { params: { userId: string } }) {
   const userId = parseInt(params.userId);
+  const { dateRange, activePeriod, setDateRange } = useTopBar();
 
   const [userInfo, setUserInfo] = useState<{ firstName: string; lastName: string; email: string; avatarUrl: string | null } | null>(null);
   const [summary, setSummary] = useState<UserCostSummary | null>(null);
   const [sessionsData, setSessionsData] = useState<UserSessionsData | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [offset, setOffset] = useState(0);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [comparison, setComparison] = useState<CostComparison | null>(null);
+  const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
+  const [loadingDaily, setLoadingDaily] = useState(true);
+  const [alertThreshold, setAlertThreshold] = useState<number | null>(null);
+
+  const userName = userInfo
+    ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || userInfo.email || `User #${userId}`
+    : `User #${userId}`;
+
+  usePageSetup(
+    [{ label: "Overview", href: "/" }, { label: userName }],
+    true
+  );
 
   useEffect(() => {
     fetch(`/api/proxy/user/${userId}`)
@@ -57,115 +84,181 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
     }
   }, [userId, offset]);
 
+  const fetchDailyAndComparison = useCallback(async () => {
+    if (!dateRange.from || !dateRange.to) return;
+    setLoadingDaily(true);
+    try {
+      const [daily, comp] = await Promise.all([
+        getDailyBreakdown(userId, dateRange.from, dateRange.to),
+        activePeriod === "7d" || activePeriod === "30d"
+          ? getUserCostComparison(userId, dateRange.from, dateRange.to)
+          : Promise.resolve(null),
+      ]);
+      setDailyEntries(daily);
+      setComparison(comp);
+    } catch {
+      // non-critical
+    } finally {
+      setLoadingDaily(false);
+    }
+  }, [userId, dateRange, activePeriod]);
+
+  const fetchAlertThreshold = useCallback(async () => {
+    try {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const from30d = format(subDays(new Date(), 30), "yyyy-MM-dd");
+      const daily30d = await getDailyBreakdown(userId, from30d, today);
+      setAlertThreshold(computeAlertThreshold(daily30d));
+    } catch {
+      // non-critical
+    }
+  }, [userId]);
+
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
+  useEffect(() => { fetchDailyAndComparison(); }, [fetchDailyAndComparison]);
+  useEffect(() => { fetchAlertThreshold(); }, [fetchAlertThreshold]);
 
-  const handleDateChange = (range: DateRange) => {
-    setOffset(0);
-    setDateRange(range);
+  const handlePageChange = (newOffset: number) => {
+    setOffset(newOffset);
   };
 
-  const isLoading = loadingSummary || loadingSessions;
+  const initials = userInfo
+    ? (userInfo.firstName?.[0] ?? userInfo.lastName?.[0] ?? userInfo.email?.[0] ?? "U").toUpperCase()
+    : "U";
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Breadcrumb + Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-slate-400 mb-2">
-            <Link href="/" className="hover:text-slate-200 transition-colors">Overview</Link>
-            <span>/</span>
-            <span className="text-slate-200">
-              {userInfo ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || userInfo.email || "User Detail" : "User Detail"}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            {userInfo?.avatarUrl ? (
-              <img src={userInfo.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-300 font-bold">
-                {userInfo ? (userInfo.firstName?.[0] ?? userInfo.lastName?.[0] ?? userInfo.email?.[0] ?? "U") : "U"}
-              </div>
-            )}
-            <div>
-              <h1 className="text-2xl font-bold text-slate-100">
-                {userInfo ? [userInfo.firstName, userInfo.lastName].filter(Boolean).join(" ") || userInfo.email || "User Detail" : "User Detail"}
-              </h1>
-              {userInfo?.email && (
-                <p className="text-slate-400 text-sm">{userInfo.email}</p>
-              )}
+    <div>
+
+      {/* User header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {userInfo?.avatarUrl ? (
+            <img src={userInfo.avatarUrl} alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover" }} />
+          ) : (
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg, #3B82F6, #6366F1)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 16, color: "white" }}>
+              {initials}
             </div>
+          )}
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#F1F5F9" }}>{userName}</div>
+            {userInfo?.email && <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{userInfo.email}</div>}
           </div>
-          {isLoading && <span className="text-slate-500 text-xs animate-pulse mt-1 block">Fetching data...</span>}
         </div>
-        <DateRangePicker value={dateRange} onChange={handleDateChange} />
       </div>
 
       {error && (
-        <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm px-4 py-3 rounded-lg">
+        <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#EF4444", fontSize: 13, padding: "10px 16px", borderRadius: 8, marginBottom: 16 }}>
           {error}
         </div>
       )}
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      {/* Section label */}
+      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3B82F6", fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        Token Metrics
+        <span style={{ flex: 1, height: 1, background: "rgba(59,130,246,0.2)" }} />
+      </div>
+
+      {/* Row 1: Token metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
         <StatCard
           label="Total Tokens"
           value={summary ? summary.totalTokens.toLocaleString() : "—"}
-          accent="indigo"
+          loading={loadingSummary}
+          valueColor="blue"
+          delta={comparison ? { value: calcDelta(comparison.current.totalTokens, comparison.previous.totalTokens), label: "vs prev period", positiveIsGood: false } : undefined}
         />
         <StatCard
-          label="Prompt Tokens"
+          label="Input Tokens"
           value={summary ? summary.totalPromptTokens.toLocaleString() : "—"}
-          accent="indigo"
+          loading={loadingSummary}
+          valueColor="slate"
+          badge={{ text: "renamed", variant: "renamed" }}
         />
         <StatCard
-          label="Completion Tokens"
+          label="Output Tokens"
           value={summary ? summary.totalCompletionTokens.toLocaleString() : "—"}
-          accent="indigo"
+          loading={loadingSummary}
+          valueColor="slate"
+          badge={{ text: "renamed", variant: "renamed" }}
         />
         <StatCard
           label="Total Cost"
           value={summary ? `$${summary.totalCostUsd.toFixed(4)}` : "—"}
-          sub="USD"
-          accent="emerald"
+          hint="USD"
+          loading={loadingSummary}
+          tone={alertThreshold !== null && summary && summary.totalCostUsd > alertThreshold ? "warning" : "default"}
+          valueColor="green"
+          delta={comparison ? { value: calcDelta(comparison.current.totalCostUsd, comparison.previous.totalCostUsd), label: "vs prev period", positiveIsGood: false } : undefined}
+        />
+      </div>
+
+      {/* Section label */}
+      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3B82F6", fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        Activity &amp; Cache
+        <span style={{ flex: 1, height: 1, background: "rgba(59,130,246,0.2)" }} />
+      </div>
+
+      {/* Row 2: Activity & cache */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        <StatCard
+          label="Turns"
+          value={summary ? summary.requestCount.toLocaleString() : "—"}
+          loading={loadingSummary}
+          valueColor="amber"
+          badge={{ text: "renamed", variant: "renamed" }}
         />
         <StatCard
-          label="Requests"
-          value={summary ? summary.requestCount.toLocaleString() : "—"}
-          accent="amber"
+          label="Sessions"
+          value={sessionsData ? sessionsData.total.toLocaleString() : "—"}
+          loading={loadingSessions}
+          valueColor="purple"
+          badge={{ text: "new", variant: "new" }}
+          hint={sessionsData && summary ? `Avg ${(summary.requestCount / sessionsData.total).toFixed(1)} turns/session` : undefined}
+        />
+        <StatCard
+          label="Avg Cost / Turn"
+          value={summary && summary.requestCount > 0 ? `$${(summary.totalCostUsd / summary.requestCount).toFixed(4)}` : "—"}
+          loading={loadingSummary}
+          valueColor="green"
+          badge={{ text: "new", variant: "new" }}
+          hint={summary && summary.requestCount > 0 ? `= $${summary.totalCostUsd.toFixed(4)} / ${summary.requestCount} turns` : undefined}
+        />
+        <StatCard
+          label="Cache Saving"
+          value={summary?.cacheSavingUsd != null ? `$${summary.cacheSavingUsd.toFixed(2)}` : "$0.00"}
+          loading={loadingSummary}
+          valueColor="cyan"
+          badge={{ text: "BE pending", variant: "pending" }}
+          hint="Waiting for BE data"
         />
       </div>
 
       {/* Chart */}
-      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-        <h2 className="text-slate-200 font-semibold text-sm mb-4">Token Usage Over Time</h2>
-        {loadingSessions ? (
-          <div className="h-48 flex items-center justify-center text-slate-500 text-sm animate-pulse">
+      <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, padding: "16px 20px", marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0", marginBottom: 12 }}>
+          Token Usage Over Time
+        </div>
+        {loadingDaily ? (
+          <div style={{ height: 140, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }} className="animate-pulse">
             Loading chart...
           </div>
-        ) : sessionsData && sessionsData.entries.length > 0 ? (
-          <TokenLineChart entries={sessionsData.entries} />
         ) : (
-          <div className="h-48 flex items-center justify-center text-slate-500 text-sm">
-            No usage data
-          </div>
+          <TokenLineChart entries={dailyEntries} />
         )}
       </div>
 
       {/* Session Table */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-slate-200 font-semibold">
-            Chat Sessions
-            {sessionsData && (
-              <span className="ml-2 text-slate-500 font-normal text-sm">
-                ({sessionsData.total.toLocaleString()} sessions)
-              </span>
-            )}
-          </h2>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "#E2E8F0" }}>Chat Sessions</span>
+          {sessionsData && (
+            <span style={{ fontSize: 12, color: "#64748B", fontWeight: 400, marginLeft: 6 }}>
+              ({sessionsData.total.toLocaleString()} sessions)
+            </span>
+          )}
           {loadingSessions && (
-            <span className="text-slate-400 text-xs animate-pulse">Loading...</span>
+            <span style={{ fontSize: 11, color: "#475569", marginLeft: "auto" }} className="animate-pulse">Loading...</span>
           )}
         </div>
         {sessionsData ? (
@@ -175,10 +268,10 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
             limit={LIMIT}
             offset={offset}
             userId={userId}
-            onPageChange={setOffset}
+            onPageChange={handlePageChange}
           />
         ) : (
-          <div className="bg-slate-800 border border-slate-700 rounded-xl h-24 flex items-center justify-center text-slate-500 text-sm animate-pulse">
+          <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, height: 96, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }} className="animate-pulse">
             Loading...
           </div>
         )}

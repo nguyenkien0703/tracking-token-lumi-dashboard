@@ -10,6 +10,10 @@ export interface UserCostSummary {
   totalCostUsd: number;
   requestCount: number;
   modelUsage?: Record<string, ModelUsage>;
+  // BE pending — hiển thị 0 khi null
+  cacheWriteTokens?: number | null;
+  cacheHitTokens?: number | null;
+  cacheSavingUsd?: number | null;
 }
 
 export interface HistoryEntry {
@@ -55,6 +59,10 @@ export interface UserSessionEntry {
   requestCount: number;
   firstTrackedAt: string;
   lastTrackedAt: string;
+  // BE pending — hiển thị 0 khi null
+  cacheWriteTokens?: number | null;
+  cacheHitTokens?: number | null;
+  cacheSavingUsd?: number | null;
 }
 
 export interface UserSessionsData {
@@ -149,4 +157,11 @@ export interface MessageCostDetail {
   };
   summary: MessageCostSummary;
   entries: MessageCostEntry[];
+}
+
+export interface DailyEntry {
+  date: string;        // "2026-05-01"
+  totalTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
 }
