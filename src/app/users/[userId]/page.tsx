@@ -14,6 +14,8 @@ import { UserCostSummary, UserSessionsData, DailyEntry } from "@/types";
 import StatCard from "@/components/StatCard";
 import TokenLineChart from "@/components/TokenLineChart";
 import SessionTable from "@/components/SessionTable";
+import SectionLabel from "@/components/ui/SectionLabel";
+import Card from "@/components/ui/Card";
 import { useTopBar } from "@/lib/topbar-context";
 import { usePageSetup } from "@/lib/use-page-setup";
 
