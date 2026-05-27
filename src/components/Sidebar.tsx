@@ -71,7 +71,7 @@ export default function Sidebar({ variant, isAdmin, onClose }: Props) {
   return (
     <aside
       className={`h-full bg-surface border-r border-border-default flex flex-col ${
-        isRail ? "w-14" : "w-52"
+        isRail ? "w-14" : "w-[200px]"
       }`}
     >
       <div className={`border-b border-border-default ${isRail ? "py-3 flex justify-center" : "px-4 py-5"}`}>

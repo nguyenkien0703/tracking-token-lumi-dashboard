@@ -81,7 +81,7 @@ export default function StatCard({
 }: StatCardProps) {
   if (loading) {
     return (
-      <div className={`bg-surface p-2.5 ${grouped ? "" : "border border-border-default rounded-lg"}`}>
+      <div className="bg-surface border border-border-default rounded-[10px] px-4 py-3.5">
         <Skeleton width="60%" height={9} />
         <Skeleton width="50%" height={22} className="mt-2" />
         <Skeleton width="40%" height={10} className="mt-1.5" />
@@ -90,18 +90,13 @@ export default function StatCard({
   }
 
   return (
-    <div className={`bg-surface p-2.5 ${
-      grouped ? (
-        tone === "warning" ? "border-l-2 border-warning/60" :
-        tone === "danger"  ? "border-l-2 border-danger/60"  : ""
-      ) : (
-        tone === "warning" ? "border border-warning/40 rounded-lg" :
-        tone === "danger"  ? "border border-danger/40 rounded-lg"  :
-        "border border-border-default rounded-lg"
-      )
+    <div className={`bg-surface border rounded-[10px] px-4 py-3.5 ${
+      tone === "warning" ? "border-warning/40" :
+      tone === "danger"  ? "border-danger/40"  :
+      "border-border-default"
     }`}>
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[9px] uppercase tracking-widest text-text-muted font-semibold leading-none">
+        <p className="text-[10px] uppercase tracking-[0.08em] text-text-muted font-semibold leading-none mb-2">
           {label}
         </p>
         {icon && (
@@ -110,13 +105,13 @@ export default function StatCard({
           </div>
         )}
       </div>
-      <p className={`mt-2 font-mono text-base md:text-lg font-bold leading-none tabular-nums tracking-tight ${valueColorMap[valueColor]}`}>
+      <p className={`font-mono text-[22px] font-bold leading-none tabular-nums ${valueColorMap[valueColor]}`}>
         {value}
       </p>
       {delta ? (
         <DeltaRow delta={delta} />
       ) : hint ? (
-        <p className="mt-1 text-[10px] text-text-muted">{hint}</p>
+        <p className="mt-1.5 text-[11px] text-text-muted">{hint}</p>
       ) : null}
     </div>
   );

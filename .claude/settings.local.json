@@ -33,7 +33,8 @@
       "Bash(echo \"PID: $!\")",
       "Bash(dev-browser screenshot *)",
       "Bash(echo \"exit: $?\")",
-      "Bash(dev-browser --help)"
+      "Bash(dev-browser --help)",
+      "Read(//private/tmp/brainstorm/content/**)"
     ]
   }
 }
