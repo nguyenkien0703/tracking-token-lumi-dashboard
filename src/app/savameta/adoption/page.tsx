@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import StatCard from "@/components/savameta/StatCard";
+import RefreshButton from "@/components/ui/RefreshButton";
 import { downloadCsv } from "@/lib/csv";
 
 function deptSlug(key: string): string {
@@ -108,17 +109,12 @@ export default function AdoptionPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-100">Adoption</h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <h1 className="text-2xl font-semibold text-text-primary">Adoption</h1>
+          <p className="text-sm text-text-secondary mt-1">
             Track who joined / not / when. Source: roster + history_entries.
           </p>
         </div>
-        <button
-          onClick={fetchAll}
-          className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm px-3 py-1.5 rounded"
-        >
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
+        <RefreshButton onClick={fetchAll} loading={loading} />
       </div>
 
       {/* Stat cards */}
@@ -140,16 +136,16 @@ export default function AdoptionPage() {
       </div>
 
       {/* By Release */}
-      <section className="bg-slate-800 border border-slate-700 rounded-lg">
-        <div className="p-4 border-b border-slate-700">
-          <h2 className="text-sm font-semibold text-slate-200">New Joiners by Release</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+      <section className="bg-surface border border-border-default rounded-[10px]">
+        <div className="p-4 border-b border-border-default">
+          <h2 className="text-sm font-semibold text-text-primary">New Joiners by Release</h2>
+          <p className="text-xs text-text-muted mt-0.5">
             User được count vào release đầu tiên match `first_seen_at` trong window.
           </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-xs text-slate-400 uppercase border-b border-slate-700">
+            <thead className="text-xs text-text-secondary uppercase border-b border-border-default">
               <tr>
                 <th className="text-left px-4 py-2">Release</th>
                 <th className="text-left px-4 py-2">Window</th>
@@ -160,17 +156,17 @@ export default function AdoptionPage() {
             </thead>
             <tbody>
               {byRelease.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-500">{loading ? "Loading..." : "No releases defined yet — add in Settings → Releases"}</td></tr>
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-text-muted">{loading ? "Loading..." : "No releases defined yet — add in Settings → Releases"}</td></tr>
               ) : (
                 byRelease.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-700/50">
-                    <td className="px-4 py-2 text-slate-200 font-medium">{r.name}</td>
-                    <td className="px-4 py-2 text-slate-300">
-                      {r.start_date} → {r.end_date ?? <span className="text-emerald-400">ongoing</span>}
+                  <tr key={r.id} className="border-b border-border-default/50">
+                    <td className="px-4 py-2 text-text-primary font-medium">{r.name}</td>
+                    <td className="px-4 py-2 text-text-secondary">
+                      {r.start_date} → {r.end_date ?? <span className="text-success">ongoing</span>}
                     </td>
-                    <td className="px-4 py-2 text-right text-slate-100 font-semibold">{r.new_joiners}</td>
-                    <td className="px-4 py-2 text-right text-slate-400">{r.days_active}</td>
-                    <td className="px-4 py-2 text-right text-slate-300">{r.velocity.toFixed(2)}</td>
+                    <td className="px-4 py-2 text-right text-text-primary font-semibold">{r.new_joiners}</td>
+                    <td className="px-4 py-2 text-right text-text-muted">{r.days_active}</td>
+                    <td className="px-4 py-2 text-right text-text-secondary">{r.velocity.toFixed(2)}</td>
                   </tr>
                 ))
               )}
@@ -180,15 +176,15 @@ export default function AdoptionPage() {
       </section>
 
       {/* Tabs */}
-      <section className="bg-slate-800 border border-slate-700 rounded-lg">
-        <div className="border-b border-slate-700 flex items-center justify-between">
+      <section className="bg-surface border border-border-default rounded-[10px]">
+        <div className="border-b border-border-default flex items-center justify-between">
           <div className="flex">
             <button
               onClick={() => setActiveTab("joined")}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "joined"
-                  ? "border-indigo-500 text-slate-100"
-                  : "border-transparent text-slate-400 hover:text-slate-200"
+                  ? "border-primary text-text-primary"
+                  : "border-transparent text-text-secondary hover:text-text-primary"
               }`}
             >
               Joined ({joined.length})
@@ -197,8 +193,8 @@ export default function AdoptionPage() {
               onClick={() => setActiveTab("never")}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "never"
-                  ? "border-indigo-500 text-slate-100"
-                  : "border-transparent text-slate-400 hover:text-slate-200"
+                  ? "border-primary text-text-primary"
+                  : "border-transparent text-text-secondary hover:text-text-primary"
               }`}
             >
               Never Joined ({neverJoined.length})
@@ -212,7 +208,7 @@ export default function AdoptionPage() {
                 downloadCsv(`never-joined-users-${new Date().toISOString().slice(0, 10)}.csv`, neverJoined as unknown as Record<string, unknown>[]);
               }
             }}
-            className="mr-4 text-xs text-indigo-400 hover:text-indigo-300"
+            className="mr-4 text-xs text-primary hover:text-primary/80"
           >
             Export CSV
           </button>
@@ -228,19 +224,19 @@ export default function AdoptionPage() {
             collapseAll={collapseAll}
             emptyMessage="No joined users yet"
             renderRows={(entries) => entries.map((u) => (
-              <tr key={u.email} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                <td className="px-4 py-2 text-slate-200 text-sm">{u.email}</td>
-                <td className="px-4 py-2 text-slate-300 text-sm">{u.display_name ?? u.full_name ?? "-"}</td>
-                <td className="px-4 py-2 text-slate-400 text-xs">{u.first_seen_at ? new Date(u.first_seen_at).toLocaleDateString() : "-"}</td>
-                <td className="px-4 py-2 text-slate-400 text-xs">{u.last_active_at ? new Date(u.last_active_at).toLocaleDateString() : "-"}</td>
+              <tr key={u.email} className="border-b border-border-default/50 hover:bg-surface-2/40">
+                <td className="px-4 py-2 text-text-primary text-sm">{u.email}</td>
+                <td className="px-4 py-2 text-text-secondary text-sm">{u.display_name ?? u.full_name ?? "-"}</td>
+                <td className="px-4 py-2 text-text-muted text-xs">{u.first_seen_at ? new Date(u.first_seen_at).toLocaleDateString() : "-"}</td>
+                <td className="px-4 py-2 text-text-muted text-xs">{u.last_active_at ? new Date(u.last_active_at).toLocaleDateString() : "-"}</td>
                 <td className="px-4 py-2 text-right">
                   {u.days_since_last_activity === null ? (
-                    <span className="text-slate-500 text-xs">—</span>
+                    <span className="text-text-muted text-xs">—</span>
                   ) : (
                     <span className={`text-xs font-medium ${
-                      u.days_since_last_activity <= 7 ? "text-emerald-400"
-                      : u.days_since_last_activity <= 30 ? "text-amber-400"
-                      : "text-red-400"
+                      u.days_since_last_activity <= 7 ? "text-success"
+                      : u.days_since_last_activity <= 30 ? "text-warning"
+                      : "text-danger"
                     }`}>{u.days_since_last_activity}d</span>
                   )}
                 </td>
@@ -259,10 +255,10 @@ export default function AdoptionPage() {
             collapseAll={collapseAll}
             emptyMessage="Everyone in roster has joined"
             renderRows={(entries) => entries.map((u) => (
-              <tr key={u.email} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                <td className="px-4 py-2 text-slate-200 text-sm">{u.email}</td>
-                <td className="px-4 py-2 text-slate-300 text-sm">{u.full_name ?? "-"}</td>
-                <td className="px-4 py-2 text-slate-400 text-xs">{new Date(u.added_at).toLocaleDateString()}</td>
+              <tr key={u.email} className="border-b border-border-default/50 hover:bg-surface-2/40">
+                <td className="px-4 py-2 text-text-primary text-sm">{u.email}</td>
+                <td className="px-4 py-2 text-text-secondary text-sm">{u.full_name ?? "-"}</td>
+                <td className="px-4 py-2 text-text-muted text-xs">{new Date(u.added_at).toLocaleDateString()}</td>
               </tr>
             ))}
             headers={["Email", "Name", "Added At"]}
@@ -292,28 +288,28 @@ function DeptAccordion<T extends { department: string | null }>({
   emptyMessage, renderRows, headers, headerAligns,
 }: DeptAccordionProps<T>) {
   if (loading && groups.length === 0) {
-    return <div className="px-4 py-8 text-center text-slate-500 text-sm">Loading...</div>;
+    return <div className="px-4 py-8 text-center text-text-muted text-sm">Loading...</div>;
   }
   if (groups.length === 0) {
-    return <div className="px-4 py-8 text-center text-slate-500 text-sm">{emptyMessage}</div>;
+    return <div className="px-4 py-8 text-center text-text-muted text-sm">{emptyMessage}</div>;
   }
 
   return (
     <div>
       {/* Toolbar */}
-      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-700 bg-slate-800/50">
-        <span className="text-xs text-slate-400">
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border-default bg-surface/60">
+        <span className="text-xs text-text-secondary">
           {groups.reduce((s, g) => s + g.entries.length, 0)} members · {groups.length} departments
         </span>
-        <button type="button" onClick={expandAll} className="text-xs text-indigo-400 hover:text-indigo-300 ml-auto">
+        <button type="button" onClick={expandAll} className="text-xs text-primary hover:text-primary/80 ml-auto">
           Expand all
         </button>
-        <button type="button" onClick={collapseAll} className="text-xs text-indigo-400 hover:text-indigo-300">
+        <button type="button" onClick={collapseAll} className="text-xs text-primary hover:text-primary/80">
           Collapse all
         </button>
       </div>
 
-      <div className="divide-y divide-slate-700">
+      <div className="divide-y divide-border-default">
         {groups.map((group) => {
           const isExpanded = expandedDepts.has(group.key);
           const slug = deptSlug(group.key);
@@ -324,18 +320,18 @@ function DeptAccordion<T extends { department: string | null }>({
                 onClick={() => toggleDept(group.key)}
                 aria-expanded={isExpanded}
                 aria-controls={`adopt-dept-${slug}`}
-                className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-700/40 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-4 py-3 hover:bg-surface-2/40 transition-colors text-left"
               >
-                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`} />
-                <span className="text-slate-200 text-sm font-medium">{group.label}</span>
-                <span className="bg-slate-700 text-slate-400 text-xs px-2 py-0.5 rounded">
+                <ChevronDown className={`w-4 h-4 text-text-secondary transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`} />
+                <span className="text-text-primary text-sm font-medium">{group.label}</span>
+                <span className="bg-surface-2 text-text-secondary text-xs px-2 py-0.5 rounded">
                   {group.entries.length}
                 </span>
               </button>
               {isExpanded && (
                 <div id={`adopt-dept-${slug}`} className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="text-xs text-slate-400 uppercase border-b border-slate-700 bg-slate-800/60">
+                    <thead className="text-xs text-text-secondary uppercase border-b border-border-default bg-surface/60">
                       <tr>
                         {headers.map((h, i) => (
                           <th key={h} className={`px-4 py-2 text-${headerAligns[i]}`}>{h}</th>

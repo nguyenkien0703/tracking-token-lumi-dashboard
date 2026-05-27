@@ -133,36 +133,35 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
     <div>
 
       {/* User header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           {userInfo?.avatarUrl ? (
-            <img src={userInfo.avatarUrl} alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover" }} />
+            <img src={userInfo.avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover shrink-0" />
           ) : (
-            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg, #3B82F6, #6366F1)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 16, color: "white" }}>
+            <div
+              className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-white shrink-0"
+              style={{ background: "linear-gradient(135deg, #3B82F6, #6366F1)", fontSize: 16 }}
+            >
               {initials}
             </div>
           )}
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#F1F5F9" }}>{userName}</div>
-            {userInfo?.email && <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{userInfo.email}</div>}
+          <div className="min-w-0">
+            <div className="text-text-primary font-bold truncate" style={{ fontSize: 20 }}>{userName}</div>
+            {userInfo?.email && <div className="text-text-muted mt-0.5 truncate" style={{ fontSize: 12 }}>{userInfo.email}</div>}
           </div>
         </div>
       </div>
 
       {error && (
-        <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#EF4444", fontSize: 13, padding: "10px 16px", borderRadius: 8, marginBottom: 16 }}>
+        <div className="bg-danger/10 border border-danger/40 text-danger text-sm px-4 py-2.5 rounded-lg mb-4">
           {error}
         </div>
       )}
 
-      {/* Section label */}
-      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3B82F6", fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-        Token Metrics
-        <span style={{ flex: 1, height: 1, background: "rgba(59,130,246,0.2)" }} />
-      </div>
+      <SectionLabel>Token Metrics</SectionLabel>
 
       {/* Row 1: Token metrics */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <StatCard
           label="Total Tokens"
           value={summary ? summary.totalTokens.toLocaleString() : "—"}
@@ -195,14 +194,10 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
         />
       </div>
 
-      {/* Section label */}
-      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3B82F6", fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-        Activity &amp; Cache
-        <span style={{ flex: 1, height: 1, background: "rgba(59,130,246,0.2)" }} />
-      </div>
+      <SectionLabel>Activity &amp; Cache</SectionLabel>
 
       {/* Row 2: Activity & cache */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard
           label="Turns"
           value={summary ? summary.requestCount.toLocaleString() : "—"}
@@ -237,30 +232,27 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
       </div>
 
       {/* Chart */}
-      <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, padding: "16px 20px", marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0", marginBottom: 12 }}>
-          Token Usage Over Time
-        </div>
+      <Card title="Token Usage Over Time" className="mb-5">
         {loadingDaily ? (
-          <div style={{ height: 140, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }} className="animate-pulse">
+          <div className="h-[140px] flex items-center justify-center text-text-muted text-sm animate-pulse">
             Loading chart...
           </div>
         ) : (
           <TokenLineChart entries={dailyEntries} />
         )}
-      </div>
+      </Card>
 
       {/* Session Table */}
       <div>
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "#E2E8F0" }}>Chat Sessions</span>
+        <div className="flex items-center mb-2.5">
+          <span className="text-sm font-semibold text-text-primary">Chat Sessions</span>
           {sessionsData && (
-            <span style={{ fontSize: 12, color: "#64748B", fontWeight: 400, marginLeft: 6 }}>
+            <span className="text-xs text-text-muted ml-1.5">
               ({sessionsData.total.toLocaleString()} sessions)
             </span>
           )}
           {loadingSessions && (
-            <span style={{ fontSize: 11, color: "#475569", marginLeft: "auto" }} className="animate-pulse">Loading...</span>
+            <span className="text-[11px] text-text-muted ml-auto animate-pulse">Loading...</span>
           )}
         </div>
         {sessionsData ? (
@@ -273,9 +265,9 @@ export default function UserDetailPage({ params }: { params: { userId: string } 
             onPageChange={handlePageChange}
           />
         ) : (
-          <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, height: 96, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }} className="animate-pulse">
+          <Card padded={false} className="h-24 flex items-center justify-center text-text-muted text-sm animate-pulse">
             Loading...
-          </div>
+          </Card>
         )}
       </div>
     </div>

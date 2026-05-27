@@ -7,6 +7,9 @@ import { UserCostSummary, SessionMessageEntry, SessionMessagesPagination } from 
 import StatCard from "@/components/StatCard";
 import TurnTokenChart from "@/components/TurnTokenChart";
 import TurnTable from "@/components/TurnTable";
+import PageHeader from "@/components/ui/PageHeader";
+import SectionLabel from "@/components/ui/SectionLabel";
+import Card from "@/components/ui/Card";
 import { usePageSetup } from "@/lib/use-page-setup";
 
 const PAGE_LIMIT = 20;
@@ -141,43 +144,29 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, #6366F1, #A78BFA)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 18, color: "white" }}>
-            S
-          </div>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#F1F5F9" }}>Session Detail</div>
-            <div style={{ fontSize: 11, color: "#64748B", marginTop: 2, fontFamily: "'SF Mono', ui-monospace, monospace" }}>{sessionId}</div>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon="S"
+        iconGradient="purple"
+        title="Session Detail"
+        subtitle={<span className="font-mono">{sessionId}</span>}
+      />
 
       {error && (
-        <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#EF4444", fontSize: 13, padding: "10px 16px", borderRadius: 8, marginBottom: 16 }}>
+        <div className="bg-danger/10 border border-danger/40 text-danger text-sm px-4 py-2.5 rounded-lg mb-4">
           {error}
         </div>
       )}
 
-      {/* Token Metrics */}
-      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3B82F6", fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-        Token Metrics
-        <span style={{ flex: 1, height: 1, background: "rgba(59,130,246,0.2)" }} />
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+      <SectionLabel>Token Metrics</SectionLabel>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <StatCard label="Total Tokens" value={data ? data.totalTokens.toLocaleString() : "—"} loading={loading} valueColor="blue" />
         <StatCard label="Input Tokens" value={data ? data.totalPromptTokens.toLocaleString() : "—"} loading={loading} valueColor="slate" />
         <StatCard label="Output Tokens" value={data ? data.totalCompletionTokens.toLocaleString() : "—"} loading={loading} valueColor="slate" />
         <StatCard label="Total Cost" value={data ? `$${data.totalCostUsd.toFixed(4)}` : "—"} hint="USD" loading={loading} valueColor="green" />
       </div>
 
-      {/* Activity */}
-      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3B82F6", fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-        Activity &amp; Cache
-        <span style={{ flex: 1, height: 1, background: "rgba(59,130,246,0.2)" }} />
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+      <SectionLabel>Activity &amp; Cache</SectionLabel>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard
           label="Turns"
           value={data ? data.requestCount.toLocaleString() : "—"}
@@ -208,31 +197,35 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
         />
       </div>
 
-      {/* Chart */}
-      <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, padding: "16px 20px", marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0", marginBottom: 12 }}>
-          Token Usage Over Turn
-        </div>
+      <Card title="Token Usage Over Turn" className="mb-5">
         {allEntries.length === 0 ? (
-          <div style={{ height: 140, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }} className="animate-pulse">
+          <div className="h-[140px] flex items-center justify-center text-text-muted text-sm animate-pulse">
             Loading chart...
           </div>
         ) : (
           <TurnTokenChart entries={allEntries} />
         )}
-      </div>
+      </Card>
 
-      {/* Models Breakdown */}
-      <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, padding: "16px 20px", marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0" }}>Models Used</span>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: "rgba(100,116,139,0.15)", color: "#475569", border: "1px solid #252D4A", letterSpacing: "0.04em" }}>BE PENDING</span>
-          <span style={{ fontSize: 11, color: "#64748B", marginLeft: 4 }}>
-            ({modelBreakdown.length} {modelBreakdown.length === 1 ? "model" : "models"})
-          </span>
-        </div>
+      <Card
+        title="Models Used"
+        titleExtra={
+          <>
+            <span
+              className="text-[10px] font-bold tracking-wider px-1.5 py-px rounded border border-border-default text-text-muted"
+              style={{ background: "rgba(100,116,139,0.15)" }}
+            >
+              BE PENDING
+            </span>
+            <span className="text-[11px] text-text-muted ml-1">
+              ({modelBreakdown.length} {modelBreakdown.length === 1 ? "model" : "models"})
+            </span>
+          </>
+        }
+        className="mb-5"
+      >
         {modelBreakdown.length === 0 ? (
-          <div style={{ fontSize: 12, color: "#475569" }}>—</div>
+          <div className="text-xs text-text-muted">—</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {modelBreakdown.map((m) => {
@@ -274,24 +267,22 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
             })}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Turn Messages */}
       <div>
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "#E2E8F0" }}>Turn Messages</span>
+        <div className="flex items-center mb-2.5">
+          <span className="text-sm font-semibold text-text-primary">Turn Messages</span>
           {pagination && (
-            <span style={{ fontSize: 12, color: "#64748B", fontWeight: 400, marginLeft: 6 }}>
-              ({pagination.total} total)
-            </span>
+            <span className="text-xs text-text-muted ml-1.5">({pagination.total} total)</span>
           )}
           {msgLoading && (
-            <span style={{ fontSize: 11, color: "#475569", marginLeft: "auto" }} className="animate-pulse">Loading...</span>
+            <span className="text-[11px] text-text-muted ml-auto animate-pulse">Loading...</span>
           )}
         </div>
 
         {msgError && (
-          <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#EF4444", fontSize: 13, padding: "10px 16px", borderRadius: 8, marginBottom: 12 }}>
+          <div className="bg-danger/10 border border-danger/40 text-danger text-sm px-4 py-2.5 rounded-lg mb-3">
             {msgError}
           </div>
         )}
@@ -308,9 +299,9 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
             onPageChange={goToOffset}
           />
         ) : (
-          <div style={{ background: "#141A2E", border: "1px solid #252D4A", borderRadius: 10, height: 96, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 13 }} className="animate-pulse">
+          <Card padded={false} className="h-24 flex items-center justify-center text-text-muted text-sm animate-pulse">
             Loading...
-          </div>
+          </Card>
         )}
       </div>
     </div>
