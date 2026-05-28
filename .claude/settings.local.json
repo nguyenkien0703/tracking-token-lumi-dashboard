@@ -55,7 +55,8 @@
       "Bash(rmdir /Users/macboook/Documents/Defikit/tracking-token-lumi-dashboard/src/app/admin/login)",
       "Bash(rm /Users/macboook/Documents/Defikit/tracking-token-lumi-dashboard/src/app/api/admin/auth/route.ts)",
       "Bash(rmdir /Users/macboook/Documents/Defikit/tracking-token-lumi-dashboard/src/app/api/admin/auth)",
-      "Bash(python3 /Users/macboook/.claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.5.0/.claude/skills/ui-ux-pro-max/scripts/search.py \"analytics dashboard login dark minimal branded\" --design-system -p \"LumiPulse Login\")"
+      "Bash(python3 /Users/macboook/.claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.5.0/.claude/skills/ui-ux-pro-max/scripts/search.py \"analytics dashboard login dark minimal branded\" --design-system -p \"LumiPulse Login\")",
+      "Bash(python3 *)"
     ]
   }
 }
