@@ -7,7 +7,17 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import { TopBarProvider } from "@/lib/topbar-context";
 
-export default function AppShell({ children, isAdmin }: { children: React.ReactNode; isAdmin?: boolean }) {
+type AppShellUser = { name: string; email: string; picture?: string } | null;
+
+export default function AppShell({
+  children,
+  isAdmin,
+  user,
+}: {
+  children: React.ReactNode;
+  isAdmin?: boolean;
+  user?: AppShellUser;
+}) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -59,7 +69,7 @@ export default function AppShell({ children, isAdmin }: { children: React.ReactN
       <div className="min-h-screen pt-12 md:pt-0 md:ml-14 lg:ml-[200px] flex flex-col">
         {/* Sticky TopBar — desktop/tablet only */}
         <div className="hidden md:block">
-          <TopBar />
+          <TopBar user={user ?? null} />
         </div>
         <main className="flex-1 px-6 py-5">
           {children}

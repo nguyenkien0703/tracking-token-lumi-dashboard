@@ -32,11 +32,14 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await getSessionFromCookies();
   const isAdmin = session?.isAdmin ?? false;
+  const user = session
+    ? { name: session.name, email: session.email, picture: session.picture }
+    : null;
 
   return (
     <html lang="en" className={`${body.variable} ${heading.variable} ${mono.variable}`}>
       <body>
-        <AppShell isAdmin={isAdmin}>{children}</AppShell>
+        <AppShell isAdmin={isAdmin} user={user}>{children}</AppShell>
       </body>
     </html>
   );
