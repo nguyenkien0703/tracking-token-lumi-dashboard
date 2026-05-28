@@ -5,6 +5,7 @@ import {
   computeIsAdmin,
 } from "@/lib/oauth";
 import { signSession, SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "@/lib/session";
+import { buildAppUrl } from "@/lib/url";
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl;
@@ -13,10 +14,10 @@ export async function GET(req: NextRequest) {
   const errorParam = url.searchParams.get("error");
 
   if (errorParam) {
-    return redirectToLogin(req, errorParam);
+    return redirectToLogin(errorParam);
   }
   if (!code || !state) {
-    return redirectToLogin(req, "missing_code_or_state");
+    return redirectToLogin("missing_code_or_state");
   }
 
   const stateCookie = req.cookies.get("oauth_state")?.value;
@@ -24,10 +25,10 @@ export async function GET(req: NextRequest) {
   const fromCookie = req.cookies.get("oauth_from")?.value ?? "/";
 
   if (!stateCookie || !nonceCookie) {
-    return redirectToLogin(req, "missing_oauth_cookies");
+    return redirectToLogin("missing_oauth_cookies");
   }
   if (state !== stateCookie) {
-    return redirectToLogin(req, "state_mismatch");
+    return redirectToLogin("state_mismatch");
   }
 
   let profile;
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
     const tag = fullMsg.startsWith("token_exchange_failed")
       ? "token_exchange_failed"
       : fullMsg;
-    return redirectToLogin(req, tag);
+    return redirectToLogin(tag);
   }
 
   const isAdmin = computeIsAdmin(profile.email);
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
   });
 
   const safeFrom = fromCookie.startsWith("/") && !fromCookie.startsWith("//") ? fromCookie : "/";
-  const res = NextResponse.redirect(new URL(safeFrom, req.url));
+  const res = NextResponse.redirect(buildAppUrl(safeFrom));
 
   const secure = process.env.NODE_ENV === "production";
   res.cookies.set(SESSION_COOKIE, sessionJwt, {
@@ -72,8 +73,8 @@ export async function GET(req: NextRequest) {
   return res;
 }
 
-function redirectToLogin(req: NextRequest, error: string): NextResponse {
-  const loginUrl = new URL("/login", req.url);
+function redirectToLogin(error: string): NextResponse {
+  const loginUrl = buildAppUrl("/login");
   loginUrl.searchParams.set("error", error);
   return NextResponse.redirect(loginUrl);
 }

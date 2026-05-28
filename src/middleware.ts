@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
+import { buildAppUrl } from "@/lib/url";
 
 function isAdminZone(pathname: string): boolean {
   return (
@@ -26,7 +27,7 @@ export async function middleware(req: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
-    const loginUrl = new URL("/login", req.url);
+    const loginUrl = buildAppUrl("/login");
     loginUrl.searchParams.set("from", pathname + req.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
@@ -35,7 +36,7 @@ export async function middleware(req: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(buildAppUrl("/"));
   }
 
   return NextResponse.next();
