@@ -214,7 +214,7 @@ export default function UsersPage() {
         const { from, to } = derivePeriod(period);
         if (from) sp.set("from", from);
         if (to) sp.set("to", to);
-        const r = await fetch(`/api/admin/top-users?${sp}`, { signal: ctrl.signal });
+        const r = await fetch(`/api/top-users?${sp}`, { signal: ctrl.signal });
         const j = await r.json().catch(() => ({}));
         if (ctrl.signal.aborted) return;
         if (!r.ok) throw new Error(`top-users (segment: ${segment}) returned ${r.status}${j?.error ? ` — ${j.error}` : ""}`);

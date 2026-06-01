@@ -4,6 +4,9 @@ import Link from "next/link";
 import { format, subDays, startOfMonth } from "date-fns";
 import { useTopBar } from "@/lib/topbar-context";
 import { DateRange } from "@/types";
+import UserMenu from "./UserMenu";
+
+type TopBarUser = { name: string; email: string; picture?: string } | null;
 
 type Period = "today" | "7d" | "30d" | "month";
 
@@ -38,7 +41,7 @@ const dateInputStyle: React.CSSProperties = {
   width: 110,
 };
 
-export default function TopBar() {
+export default function TopBar({ user }: { user: TopBarUser }) {
   const { breadcrumbs, showDatePicker, dateRange, activePeriod, setDateRange } = useTopBar();
 
   const onFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,52 +83,55 @@ export default function TopBar() {
         ))}
       </nav>
 
-      {/* Date range pills */}
-      {showDatePicker && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ display: "flex", gap: 4 }}>
-            {PILLS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setDateRange(periodToRange(p.id), p.id)}
-                style={{
-                  padding: "4px 10px", borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: "pointer",
-                  border: activePeriod === p.id ? "1px solid #3B82F6" : "1px solid #252D4A",
-                  color: activePeriod === p.id ? "white" : "#64748B",
-                  background: activePeriod === p.id ? "#3B82F6" : "transparent",
-                  transition: "all 0.15s",
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
+      {/* Right cluster: date picker + user menu */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {showDatePicker && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", gap: 4 }}>
+              {PILLS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setDateRange(periodToRange(p.id), p.id)}
+                  style={{
+                    padding: "4px 10px", borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: "pointer",
+                    border: activePeriod === p.id ? "1px solid #3B82F6" : "1px solid #252D4A",
+                    color: activePeriod === p.id ? "white" : "#64748B",
+                    background: activePeriod === p.id ? "#3B82F6" : "transparent",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "6px 12px", background: "#141A2E",
+              border: `1px solid ${activePeriod === "custom" ? "#3B82F6" : "#252D4A"}`,
+              borderRadius: 7,
+            }}>
+              <input
+                type="date"
+                value={dateRange.from}
+                max={dateRange.to || undefined}
+                onChange={onFromChange}
+                style={dateInputStyle}
+                aria-label="From date"
+              />
+              <span style={{ color: "#334155", fontSize: 12 }}>→</span>
+              <input
+                type="date"
+                value={dateRange.to}
+                min={dateRange.from || undefined}
+                onChange={onToChange}
+                style={dateInputStyle}
+                aria-label="To date"
+              />
+            </div>
           </div>
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "6px 12px", background: "#141A2E",
-            border: `1px solid ${activePeriod === "custom" ? "#3B82F6" : "#252D4A"}`,
-            borderRadius: 7,
-          }}>
-            <input
-              type="date"
-              value={dateRange.from}
-              max={dateRange.to || undefined}
-              onChange={onFromChange}
-              style={dateInputStyle}
-              aria-label="From date"
-            />
-            <span style={{ color: "#334155", fontSize: 12 }}>→</span>
-            <input
-              type="date"
-              value={dateRange.to}
-              min={dateRange.from || undefined}
-              onChange={onToChange}
-              style={dateInputStyle}
-              aria-label="To date"
-            />
-          </div>
-        </div>
-      )}
+        )}
+        {user && <UserMenu name={user.name} email={user.email} picture={user.picture} />}
+      </div>
     </div>
   );
 }
