@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     try {
       data = JSON.parse(text);
     } catch {
-      console.error("[admin/top-users] Non-JSON response:", res.status, text.slice(0, 200));
+      console.error("[top-users] Non-JSON response:", res.status, text.slice(0, 200));
       return NextResponse.json(
         { success: false, error: `Backend returned status ${res.status} (endpoint may not be implemented yet)` },
         { status: 502 }

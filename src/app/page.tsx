@@ -169,7 +169,7 @@ export default function OverviewPage() {
       if (from) sp.set("from", from);
       if (to) sp.set("to", to);
 
-      const topUsersP = fetch(`/api/admin/top-users?${sp}`, { signal: ctrl.signal }).then(async (r) => {
+      const topUsersP = fetch(`/api/top-users?${sp}`, { signal: ctrl.signal }).then(async (r) => {
         const j = await r.json().catch(() => ({}));
         // Backend currently returns 500 for some segments (e.g. anonymous) — surface segment context.
         if (!r.ok) throw new Error(`top-users (segment: ${segment}) returned ${r.status}${j?.error ? ` — ${j.error}` : ""}`);
